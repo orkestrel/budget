@@ -58,9 +58,9 @@ export function createBudget<T>(options: BudgetOptions<T>): BudgetInterface<T> {
  *
  * @example
  * ```ts
- * import { createAbort, createTokenBudget } from '@src/core'
+ * import { createTokenBudget } from '@src/core'
  *
- * const abort = createAbort()
+ * const abort = new AbortController()
  * const budget = createTokenBudget({ max: 50_000, scope: 'total' })
  * budget.start()
  * // Fold the budget into the loop's bound alongside an external cancel.

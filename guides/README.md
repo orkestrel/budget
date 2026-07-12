@@ -4,25 +4,23 @@ A dual-axis index into this repository's guides — by concept, and by directory
 
 ## By concept
 
-| Concept  | Spec                                 | Source                    | Tests                                 |
-| -------- | ------------------------------------ | ------------------------- | ------------------------------------- |
-| Markdown | [`src/markdown.md`](src/markdown.md) | [`src/core`](../src/core) | [`tests/src/core`](../tests/src/core) |
+| Concept | Spec                             | Source                    | Tests                                 |
+| ------- | -------------------------------- | ------------------------- | ------------------------------------- |
+| Budget  | [`src/budget.md`](src/budget.md) | [`src/core`](../src/core) | [`tests/src/core`](../tests/src/core) |
 
 ## By directory
 
-| Directory  | Guide                                |
-| ---------- | ------------------------------------ |
-| `src/core` | [`src/markdown.md`](src/markdown.md) |
+| Directory  | Guide                            |
+| ---------- | -------------------------------- |
+| `src/core` | [`src/budget.md`](src/budget.md) |
 
 ## Dependency reference
 
 [`src/contract.md`](src/contract.md) is a byte-identical mirror of the guide for
 `@orkestrel/contract` — this package's sole runtime dependency. It documents
 **that package's** surface (guards, combinators, parsers, and the shape DSL), not
-anything sourced in this repo; it is kept here so a reader of the markdown AST
-guards, leaf-node shapes, and compiled contracts (`isMarkdownNode`,
-`createTextContract`, …) can see the primitives they are built from without
-leaving this guide set.
+anything sourced in this repo; it is kept here so a reader of this package can see
+the primitives it is built from without leaving this guide set.
 
 [`src/guide.md`](src/guide.md) is a byte-identical mirror of the guide for
 `@orkestrel/guide` — the devDependency powering this repo's guides-parity test

@@ -149,6 +149,46 @@ describe('Budget', () => {
 		expect(fired.count).toBe(1)
 	})
 
+	it('clear() on a parented budget with an already-aborted parent arms the fresh signal born aborted', () => {
+		const parent = new AbortController()
+		const parentReason = new Error('request cancelled')
+		parent.abort(parentReason)
+
+		const budget = new Budget<number>({ max: 100, consume: identity, signal: parent.signal })
+		expect(budget.signal.aborted).toBe(true)
+
+		budget.clear()
+
+		// clear() zeroes the tally and re-arms the own controller un-aborted, but the
+		// composite it recomposes still folds in the SAME already-aborted parent — so
+		// the fresh signal is born aborted, carrying the parent's reason, even though
+		// the tally itself is reset.
+		expect(budget.consumed).toBe(0)
+		expect(budget.remaining).toBe(100)
+		expect(budget.exhausted).toBe(false)
+		expect(budget.signal.aborted).toBe(true)
+		expect(budget.signal.reason).toBe(parentReason)
+	})
+
+	it('clear() after exhaustion under a live (non-aborted) parent re-arms un-aborted', () => {
+		const parent = new AbortController()
+		const budget = new Budget<number>({ max: 100, consume: identity, signal: parent.signal })
+
+		budget.consume(120) // overshoot the ceiling
+		expect(budget.exhausted).toBe(true)
+		expect(budget.signal.aborted).toBe(true)
+
+		budget.clear()
+
+		// The parent never aborted, so the fresh composite is genuinely un-aborted —
+		// the born state clear() promises when there is no already-tripped parent.
+		expect(budget.consumed).toBe(0)
+		expect(budget.remaining).toBe(100)
+		expect(budget.exhausted).toBe(false)
+		expect(budget.signal.aborted).toBe(false)
+		expect(parent.signal.aborted).toBe(false)
+	})
+
 	it('start() when already exhausted (consumed >= max) immediately aborts the fresh signal', () => {
 		const budget = new Budget<number>({ max: 100, consume: identity })
 
@@ -780,6 +820,21 @@ describe('Budget', () => {
 		expect(budget.signal.aborted).toBe(true)
 		expect(parent.signal.aborted).toBe(false)
 		expect(budget.signal.reason.name).toBe('AbortError')
+	})
+
+	// ── Construction guards ───────────────────────────────────────────────────────
+
+	it('id: undefined falls back to a generated string id', () => {
+		const budget = new Budget<number>({ id: undefined, max: 10, consume: identity })
+
+		expect(typeof budget.id).toBe('string')
+		expect(budget.id.length).toBeGreaterThan(0)
+	})
+
+	it('id: an empty string is preserved rather than replaced by a generated id', () => {
+		const budget = new Budget<number>({ id: '', max: 10, consume: identity })
+
+		expect(budget.id).toBe('')
 	})
 
 	it('a three-way bound (abort + timeout-substitute + budget) fires on whichever trips first', () => {

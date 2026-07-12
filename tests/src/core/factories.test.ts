@@ -1,7 +1,13 @@
-import type { TokenUsage } from '@src/core'
+import type { BudgetInterface, BudgetOptions, TokenBudgetOptions, TokenUsage } from '@src/core'
 import { createBudget, createTokenBudget } from '@src/core'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createRecorder } from '../../setup.js'
+
+// Note: BudgetOptions<T>.consume is a required `(value: T) => number` function type.
+// A non-function value is unrepresentable at that position without `as`/`any`, which
+// AGENTS.md forbids — so the constructor's `isFunction` guard (Budget.ts, construction
+// time) has no typecheck-legal runtime regression test here; it remains JS-boundary
+// defense for untyped callers, exercised only by TypeScript rejecting the bad call site.
 
 // The budget factories — createBudget returns a working BudgetInterface, and
 // createTokenBudget charges the chosen TokenUsage scope. Full tally / re-arm /
@@ -187,5 +193,36 @@ describe('createTokenBudget', () => {
 		expect(budget.signal).not.toBe(first)
 		expect(budget.signal.aborted).toBe(false)
 		expect(budget.consumed).toBe(40)
+	})
+})
+
+describe('type-level', () => {
+	it('BudgetOptions<T> flows T through consume and createBudget returns BudgetInterface<T>', () => {
+		expectTypeOf<BudgetOptions<number>['consume']>().toEqualTypeOf<(value: number) => number>()
+		expectTypeOf(createBudget<number>({ max: 1, consume: identity })).toEqualTypeOf<
+			BudgetInterface<number>
+		>()
+
+		interface Cost {
+			readonly cost: number
+		}
+		expectTypeOf<BudgetOptions<Cost>['consume']>().toEqualTypeOf<(value: Cost) => number>()
+		expectTypeOf(createBudget<Cost>({ max: 1, consume: (value) => value.cost })).toEqualTypeOf<
+			BudgetInterface<Cost>
+		>()
+	})
+
+	it('TokenUsage exposes exactly prompt / completion / total readonly numbers', () => {
+		expectTypeOf<TokenUsage>().toEqualTypeOf<{
+			readonly prompt: number
+			readonly completion: number
+			readonly total: number
+		}>()
+	})
+
+	it('createTokenBudget accepts TokenBudgetOptions and returns BudgetInterface<TokenUsage>', () => {
+		expectTypeOf(createTokenBudget).toBeFunction()
+		expectTypeOf(createTokenBudget).parameter(0).toEqualTypeOf<TokenBudgetOptions>()
+		expectTypeOf(createTokenBudget({ max: 1 })).toEqualTypeOf<BudgetInterface<TokenUsage>>()
 	})
 })

@@ -1,4 +1,5 @@
 import type { BudgetInterface, BudgetOptions } from './types.js'
+import { isFunction, isString } from '@orkestrel/contract'
 
 /**
  * A cost handle — a running tally against `max` whose `AbortSignal` fires when the
@@ -51,7 +52,12 @@ export class Budget<T> implements BudgetInterface<T> {
 	#signal: AbortSignal
 
 	constructor(options: BudgetOptions<T>) {
-		this.id = options.id ?? crypto.randomUUID()
+		// consume is invoked later on the hot path; a non-function at the untyped JS
+		// boundary must fail loudly here at construction, so consume()/getters stay
+		// dependency-free and never re-check their input.
+		if (!isFunction(options.consume))
+			throw new TypeError('Budget requires options.consume to be a function')
+		this.id = isString(options.id) ? options.id : crypto.randomUUID()
 		this.#max = options.max
 		this.#consumer = options.consume
 		this.#parent = options.signal
