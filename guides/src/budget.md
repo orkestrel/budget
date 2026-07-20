@@ -11,7 +11,7 @@
 Create a cost handle, `start()` it, and race its `signal` against work; `consume(value)` to charge the tally as work spends:
 
 ```ts
-import { createBudget } from '@src/core'
+import { createBudget } from '@orkestrel/budget'
 
 const budget = createBudget<number>({ max: 10_000, consume: (cost) => cost })
 budget.start()
@@ -85,7 +85,7 @@ These invariants hold across `src/core` ↔ `budget.md`:
 The dominant use: bound how much work may spend by racing it against the budget `signal`.
 
 ```ts
-import { createBudget } from '@src/core'
+import { createBudget } from '@orkestrel/budget'
 
 const budget = createBudget<number>({ max: 1_000_000, consume: (bytes) => bytes })
 budget.start()
@@ -103,7 +103,7 @@ for await (const chunk of stream) {
 The headline use the primitive exists for: a token budget consumed per provider call, its `signal` folded into the loop's abort alongside an external cancel and a deadline — `AbortSignal.any` over all three bounds, whichever trips first.
 
 ```ts
-import { createTokenBudget } from '@src/core'
+import { createTokenBudget } from '@orkestrel/budget'
 
 const cancel = new AbortController() // external cancel
 const deadline = AbortSignal.timeout(60_000) // wall-clock deadline
@@ -124,7 +124,7 @@ while (!bound.aborted) {
 `start()` re-arms the per-request `signal` while the cumulative spend carries forward — a session-long budget that bounds each request and is born exhausted once the lifetime ceiling is reached.
 
 ```ts
-import { createTokenBudget } from '@src/core'
+import { createTokenBudget } from '@orkestrel/budget'
 
 const budget = createTokenBudget({ max: 1_000_000, scope: 'total' })
 for (const request of requests) {
@@ -139,7 +139,7 @@ for (const request of requests) {
 `clear()` zeroes the tally and re-arms a fresh signal, so a spent budget can open a new window from scratch — e.g. an agent loop that compacts context and continues.
 
 ```ts
-import { createBudget } from '@src/core'
+import { createBudget } from '@orkestrel/budget'
 
 const budget = createBudget<number>({ max: 1_000, consume: (n) => n })
 budget.start()
