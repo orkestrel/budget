@@ -1,5 +1,5 @@
 import type { BudgetInterface, BudgetOptions, TokenBudgetOptions, TokenUsage } from '@src/core'
-import { createBudget, createTokenBudget } from '@src/core'
+import { createBudget, createTokenBudget, createTokenConsumer } from '@src/core'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createRecorder } from '../../setup.js'
 
@@ -56,6 +56,16 @@ describe('createBudget', () => {
 
 		expect(budget.signal.aborted).toBe(true)
 		expect(budget.exhausted).toBe(false)
+	})
+})
+
+describe('createTokenConsumer', () => {
+	it('selects each supported token usage field', () => {
+		const value = usage(100, 15, 115)
+
+		expect(createTokenConsumer('completion')(value)).toBe(15)
+		expect(createTokenConsumer('total')(value)).toBe(115)
+		expect(createTokenConsumer('prompt')(value)).toBe(100)
 	})
 })
 

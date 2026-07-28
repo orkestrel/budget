@@ -824,8 +824,8 @@ describe('Budget', () => {
 
 	// ── Construction guards ───────────────────────────────────────────────────────
 
-	it('id: undefined falls back to a generated string id', () => {
-		const budget = new Budget<number>({ id: undefined, max: 10, consume: identity })
+	it('an absent id falls back to a generated string id', () => {
+		const budget = new Budget<number>({ max: 10, consume: identity })
 
 		expect(typeof budget.id).toBe('string')
 		expect(budget.id.length).toBeGreaterThan(0)

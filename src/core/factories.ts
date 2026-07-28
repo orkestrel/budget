@@ -39,6 +39,24 @@ export function createBudget<T>(options: BudgetOptions<T>): BudgetInterface<T> {
 }
 
 /**
+ * Create a token consumer that extracts one selected usage field.
+ *
+ * @param scope - The token usage field to charge
+ * @returns A unary consumer for the selected field
+ *
+ * @example
+ * ```ts
+ * const consume = createTokenConsumer('total')
+ * consume({ prompt: 100, completion: 15, total: 115 }) // 115
+ * ```
+ */
+export function createTokenConsumer(
+	scope: NonNullable<TokenBudgetOptions['scope']>,
+): BudgetOptions<TokenUsage>['consume'] {
+	return (usage) => usage[scope]
+}
+
+/**
  * Create a token budget — a {@link BudgetInterface} over {@link TokenUsage} that
  * charges one usage field per provider call, the canonical LLM cost ceiling.
  *
@@ -72,5 +90,8 @@ export function createBudget<T>(options: BudgetOptions<T>): BudgetInterface<T> {
  * ```
  */
 export function createTokenBudget(options: TokenBudgetOptions): BudgetInterface<TokenUsage> {
-	return createBudget({ ...options, consume: (usage) => usage[options.scope ?? 'completion'] })
+	return createBudget({
+		...options,
+		consume: createTokenConsumer(options.scope ?? 'completion'),
+	})
 }

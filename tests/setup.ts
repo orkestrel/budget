@@ -37,3 +37,9 @@ export function createRecorder<TArgs extends readonly unknown[]>(): TestRecorder
 		},
 	}
 }
+
+/** Whether a repository-relative Vue SFC path belongs to the private browser application. */
+export function isBrowserVuePath(path: string): boolean {
+	const normalized = path.replaceAll('\\', '/')
+	return normalized.startsWith('app/browser/')
+}
