@@ -1,66 +1,48 @@
 import type { BudgetInterface, BudgetOptions } from './types.js'
-import { isFunction, isString } from '@orkestrel/contract'
+import { ContractError, preview } from '@orkestrel/contract'
+import { validateBudgetOptions } from './helpers.js'
+import { isBudgetAmount } from './validators.js'
 
 /**
- * A cost handle — a running tally against `max` whose `AbortSignal` fires when the
- * ceiling is reached, for racing against work exactly like a `Timeout` deadline.
+ * A cumulative cost handle whose native `AbortSignal` aborts at its ceiling.
  *
  * @remarks
- * - **Ceiling signal.** `consume(value)` charges the tally by `consume(value)`; the
- *   moment cumulative `consumed` reaches `max`, a private controller aborts and
- *   `signal` fires. Race `signal` against work to cap how much that work may spend
- *   (tokens, bytes, calls). The trip is idempotent — consuming further once exhausted
- *   never re-aborts.
- * - **Cumulative tally, per-request signal.** `consumed` only ever grows; it is the
- *   lifetime spend. `start()` re-arms a FRESH `signal` for the next request WITHOUT
- *   resetting `consumed` — the ceiling stays the same running total across requests,
- *   so a budget already at or past `max` arms an immediately-aborted signal (the
- *   re-arm guard, mirroring how `Timeout.start` honors an already-aborted parent).
- * - **`clear()` resets the tally (§10).** `clear()` is the §10 reset — like `start()`
- *   it re-arms a fresh non-aborted `signal`, but it ALSO zeroes `#consumed`, so the
- *   budget returns to its born state: `consumed === 0`, `remaining === max`,
- *   `exhausted === false`, `signal.aborted === false`. It is the ceiling action a
- *   measure-since-an-event budget wants — consume toward `max`, and on crossing it
- *   take the action then `clear()` to start the next window from zero (e.g. an agent
- *   loop's compact-and-continue), the counterpart to `start()`'s spend-across-requests.
- * - **Parent linking.** When `options.signal` is given, the exposed `signal` is
- *   `AbortSignal.any([own, parent])`, so it fires on EITHER exhaustion OR the parent
- *   aborting — without re-implementing listener wiring. The composite is computed
- *   once per `start()` (and at construction) and stored, never recomputed per read,
- *   mirroring how `Abort` exposes its composite. A parent that has ALREADY aborted
- *   makes the current `signal` born aborted (carrying the parent's reason).
- * - **Event-free.** A pure functional primitive — no Emitter, no events. `max` should
- *   be a non-negative finite number; `max: 0` is a budget that is exhausted from the
- *   first `start()` / `consume`.
+ * `consume(value)` invokes the configured consumer before changing state, then
+ * atomically commits a finite nonnegative charge. A consumer throw retains its
+ * original identity. Invalid charges and nonfinite tally overflow throw a
+ * `range`-coded {@link import('@orkestrel/contract').ContractError} without
+ * changing the tally or signal.
+ *
+ * `start()` re-arms without resetting cumulative consumption; `clear()` resets
+ * the tally and re-arms. Consumption before `start()` remains supported. The
+ * exposed signal composes the owned exhaustion controller with an optional
+ * native parent signal, preserving the first abort reason.
  *
  * @example
  * ```ts
- * const budget = new Budget<number>({ max: 1_000, consume: (n) => n })
- * budget.start()
- * budget.signal.addEventListener('abort', () => stop(), { once: true })
- * budget.consume(400) // remaining 600
- * budget.consume(700) // crosses 1_000 — fires `signal`
+ * import { Budget } from '@orkestrel/budget'
+ *
+ * const budget = new Budget<number>({ max: 1_000, consume: (value) => value })
+ * budget.consume(400)
+ * budget.consume(700)
  * ```
  */
 export class Budget<T> implements BudgetInterface<T> {
 	readonly id: string
 	readonly #max: number
-	readonly #consumer: (value: T) => number
+	readonly #consumer: BudgetOptions<T>['consume']
 	readonly #parent: AbortSignal | undefined
 	#consumed = 0
-	#controller = new AbortController()
+	#controller: AbortController
 	#signal: AbortSignal
 
 	constructor(options: BudgetOptions<T>) {
-		// consume is invoked later on the hot path; a non-function at the untyped JS
-		// boundary must fail loudly here at construction, so consume()/getters stay
-		// dependency-free and never re-check their input.
-		if (!isFunction(options.consume))
-			throw new TypeError('Budget requires options.consume to be a function')
-		this.id = isString(options.id) ? options.id : crypto.randomUUID()
-		this.#max = options.max
-		this.#consumer = options.consume
-		this.#parent = options.signal
+		const input = validateBudgetOptions(options)
+		this.id = input.id === undefined ? crypto.randomUUID() : input.id
+		this.#max = input.max
+		this.#consumer = input.consume
+		this.#parent = input.signal
+		this.#controller = new AbortController()
 		this.#signal = this.#compose()
 	}
 
@@ -85,35 +67,45 @@ export class Budget<T> implements BudgetInterface<T> {
 	}
 
 	start(): void {
-		// Re-arm a fresh per-request signal; the cumulative tally is left untouched.
 		this.#controller = new AbortController()
 		this.#signal = this.#compose()
-		// Already at or past the ceiling — the re-armed signal is born exhausted, so a
-		// new request opened on a spent budget is bounded from the very first tick.
-		if (this.#consumed >= this.#max) this.#controller.abort()
+		if (this.exhausted) this.#controller.abort()
 	}
 
 	consume(value: T): void {
-		this.#consumed += this.#consumer(value)
-		// Trip exactly once on crossing the ceiling; aborting again is a no-op anyway.
-		if (this.#consumed >= this.#max && !this.#controller.signal.aborted) {
-			this.#controller.abort()
+		const charge = this.#consumer(value)
+		if (!isBudgetAmount(charge)) {
+			throw new ContractError('Budget.consume: charge must be finite and nonnegative', {
+				code: 'range',
+				context: {
+					path: ['charge'],
+					limit: 'finite nonnegative number',
+					received: preview(charge),
+				},
+			})
 		}
+		const consumed = this.#consumed + charge
+		if (!isBudgetAmount(consumed)) {
+			throw new ContractError('Budget.consume: cumulative tally must remain finite', {
+				code: 'range',
+				context: {
+					path: ['consumed'],
+					limit: 'finite number',
+					received: preview(consumed),
+				},
+			})
+		}
+
+		this.#consumed = consumed
+		if (this.exhausted && !this.#controller.signal.aborted) this.#controller.abort()
 	}
 
 	clear(): void {
-		// The §10 reset: zero the cumulative tally AND re-arm a fresh non-aborted signal, so
-		// the budget returns to its born state (consumed 0, remaining max, not exhausted, a
-		// fresh un-tripped controller). Unlike start() — which re-arms but PRESERVES the
-		// running total — clear() wipes #consumed first, so the re-arm guard sees 0 < max and
-		// leaves the new signal un-aborted (a positive max), opening the next window from zero.
 		this.#consumed = 0
 		this.#controller = new AbortController()
 		this.#signal = this.#compose()
 	}
 
-	// The exposed signal — the own controller alone, or `AbortSignal.any([own, parent])`
-	// when parented (so a parent abort fires it too), computed once per arm.
 	#compose(): AbortSignal {
 		return this.#parent === undefined
 			? this.#controller.signal

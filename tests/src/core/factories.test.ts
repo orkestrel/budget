@@ -1,61 +1,62 @@
-import type { BudgetInterface, BudgetOptions, TokenBudgetOptions, TokenUsage } from '@src/core'
+import type {
+	BudgetInterface,
+	BudgetOptions,
+	TokenBudgetOptions,
+	TokenScope,
+	TokenUsage,
+} from '@src/core'
 import { createBudget, createTokenBudget, createTokenConsumer } from '@src/core'
+import { preview } from '@orkestrel/contract'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { createRecorder } from '../../setup.js'
+import { captureContractError, createRecorder, selectCharge } from '../../setup.js'
 
-// Note: BudgetOptions<T>.consume is a required `(value: T) => number` function type.
-// A non-function value is unrepresentable at that position without `as`/`any`, which
-// AGENTS.md forbids — so the constructor's `isFunction` guard (Budget.ts, construction
-// time) has no typecheck-legal runtime regression test here; it remains JS-boundary
-// defense for untyped callers, exercised only by TypeScript rejecting the bad call site.
-
-// The budget factories — createBudget returns a working BudgetInterface, and
-// createTokenBudget charges the chosen TokenUsage scope. Full tally / re-arm /
-// parent behavior lives in Budget.test.ts; here we assert the factories hand back
-// usable handles and that the token convenience picks the right field.
-
-const identity = (value: number): number => value
-
-const usage = (prompt: number, completion: number, total: number): TokenUsage => ({
-	prompt,
-	completion,
-	total,
-})
+function usage(prompt: number, completion: number, total: number): TokenUsage {
+	return { prompt, completion, total }
+}
 
 describe('createBudget', () => {
-	it('returns a working BudgetInterface (consume → exhaust + signal)', () => {
-		const budget = createBudget<number>({ max: 100, consume: identity })
+	it('returns a working BudgetInterface', () => {
+		const budget = createBudget<number>({ max: 100, consume: selectCharge })
 		const fired = createRecorder<readonly []>()
 		budget.signal.addEventListener('abort', fired.handler)
 
-		expect(budget.max).toBe(100)
-		expect(budget.exhausted).toBe(false)
-
 		budget.consume(60)
-		expect(budget.consumed).toBe(60)
-		expect(budget.remaining).toBe(40)
-		expect(budget.signal.aborted).toBe(false)
-
 		budget.consume(40)
+
+		expect(budget.max).toBe(100)
+		expect(budget.consumed).toBe(100)
+		expect(budget.remaining).toBe(0)
 		expect(budget.exhausted).toBe(true)
 		expect(budget.signal.aborted).toBe(true)
 		expect(fired.count).toBe(1)
 	})
 
-	it('honors the id option', () => {
-		const budget = createBudget<number>({ id: 'budget-7', max: 10, consume: identity })
+	it('passes identity and parent options through the validated constructor', () => {
+		const parent = new AbortController()
+		const budget = createBudget<number>({
+			id: 'budget-7',
+			max: 100,
+			consume: selectCharge,
+			signal: parent.signal,
+		})
 
 		expect(budget.id).toBe('budget-7')
+		parent.abort('parent')
+		expect(budget.signal.aborted).toBe(true)
+		expect(budget.signal.reason).toBe('parent')
+		expect(budget.exhausted).toBe(false)
 	})
 
-	it('honors a parent signal — a parent abort fires the budget signal', () => {
-		const parent = new AbortController()
-		const budget = createBudget<number>({ max: 100, consume: identity, signal: parent.signal })
+	it('rejects an untyped non-function consumer through the factory boundary', () => {
+		const options = { max: 10, consume: 1 }
+		const error = captureContractError(() => Reflect.apply(createBudget, undefined, [options]))
 
-		parent.abort()
-
-		expect(budget.signal.aborted).toBe(true)
-		expect(budget.exhausted).toBe(false)
+		expect(error.code).toBe('placement')
+		expect(error.context).toEqual({
+			path: ['options', 'consume'],
+			limit: 'function',
+			received: '1',
+		})
 	})
 })
 
@@ -67,171 +68,219 @@ describe('createTokenConsumer', () => {
 		expect(createTokenConsumer('total')(value)).toBe(115)
 		expect(createTokenConsumer('prompt')(value)).toBe(100)
 	})
+
+	it('rejects an unsupported untyped scope with exact literal context', () => {
+		const error = captureContractError(() =>
+			Reflect.apply(createTokenConsumer, undefined, ['input']),
+		)
+
+		expect(error.code).toBe('literal')
+		expect(error.context).toEqual({
+			path: ['scope'],
+			limit: "'completion' | 'total' | 'prompt'",
+			received: '"input"',
+		})
+	})
+
+	it.each([
+		['null', null],
+		['an array', []],
+		['missing fields', { prompt: 1 }],
+		['a negative count', { prompt: -1, completion: 1, total: 0 }],
+		['NaN', { prompt: 1, completion: Number.NaN, total: 1 }],
+		['infinity', { prompt: 1, completion: 1, total: Number.POSITIVE_INFINITY }],
+	])('rejects %s usage with exact placement context', (_label, value) => {
+		const consumer = createTokenConsumer('completion')
+		const error = captureContractError(() => Reflect.apply(consumer, undefined, [value]))
+
+		expect(error.code).toBe('placement')
+		expect(error.context).toEqual({
+			path: ['usage'],
+			limit: 'finite nonnegative prompt, completion, and total',
+			received: preview(value),
+		})
+	})
+
+	it('contains a hostile token getter as invalid usage', () => {
+		const descriptor = Object.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted')
+		if (descriptor === undefined) throw new Error('Expected the native aborted descriptor')
+		const value = { completion: 1, total: 1 }
+		Object.defineProperty(value, 'prompt', descriptor)
+		const consumer = createTokenConsumer('prompt')
+		const error = captureContractError(() => Reflect.apply(consumer, undefined, [value]))
+
+		expect(error.code).toBe('placement')
+		expect(error.context).toEqual({
+			path: ['usage'],
+			limit: 'finite nonnegative prompt, completion, and total',
+			received: 'object',
+		})
+	})
+
+	it('contains revoked usage proxies', () => {
+		const revoked = Proxy.revocable(usage(1, 2, 3), {})
+		revoked.revoke()
+		const consumer = createTokenConsumer('total')
+		const error = captureContractError(() => Reflect.apply(consumer, undefined, [revoked.proxy]))
+
+		expect(error.code).toBe('placement')
+		expect(error.context).toEqual({
+			path: ['usage'],
+			limit: 'finite nonnegative prompt, completion, and total',
+			received: 'object',
+		})
+	})
+})
+
+describe('createTokenBudget construction boundary', () => {
+	it.each([
+		['undefined', undefined],
+		['null', null],
+		['an array', []],
+	])('rejects %s options with exact bound context', (_label, value) => {
+		const error = captureContractError(() => Reflect.apply(createTokenBudget, undefined, [value]))
+
+		expect(error.code).toBe('bound')
+		expect(error.context).toEqual({
+			path: ['options'],
+			limit: 'plain record',
+			received: preview(value),
+		})
+	})
+
+	it('contains unreadable options and preserves the cause', () => {
+		const descriptor = Object.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted')
+		if (descriptor === undefined) throw new Error('Expected the native aborted descriptor')
+		const options = {}
+		Object.defineProperty(options, 'max', descriptor)
+		const error = captureContractError(() => Reflect.apply(createTokenBudget, undefined, [options]))
+
+		expect(error.code).toBe('bound')
+		expect(error.context).toEqual({
+			path: ['options'],
+			limit: 'readable plain record',
+			received: 'object',
+		})
+		expect(error.cause instanceof TypeError).toBe(true)
+	})
+
+	it.each([
+		['id', { id: 1, max: 10 }, 'literal', ['options', 'id'], 'string or undefined', '1'],
+		['max', { max: -1 }, 'range', ['options', 'max'], 'finite nonnegative number', '-1'],
+		[
+			'scope',
+			{ max: 10, scope: 'input' },
+			'literal',
+			['options', 'scope'],
+			"'completion' | 'total' | 'prompt' or undefined",
+			'"input"',
+		],
+		[
+			'signal',
+			{ max: 10, signal: { aborted: false } },
+			'placement',
+			['options', 'signal'],
+			'native AbortSignal or undefined',
+			'object',
+		],
+	])(
+		'rejects invalid %s with exact contract context',
+		(_field, options, code, path, limit, received) => {
+			const error = captureContractError(() =>
+				Reflect.apply(createTokenBudget, undefined, [options]),
+			)
+
+			expect(error.code).toBe(code)
+			expect(error.context).toEqual({ path, limit, received })
+		},
+	)
+
+	it('contains a revoked parent signal proxy', () => {
+		const revoked = Proxy.revocable(new AbortController().signal, {})
+		revoked.revoke()
+		const error = captureContractError(() =>
+			Reflect.apply(createTokenBudget, undefined, [{ max: 10, signal: revoked.proxy }]),
+		)
+
+		expect(error.code).toBe('placement')
+		expect(error.context).toEqual({
+			path: ['options', 'signal'],
+			limit: 'native AbortSignal or undefined',
+			received: 'object',
+		})
+	})
 })
 
 describe('createTokenBudget', () => {
-	it('charges the completion field by default', () => {
-		const budget = createTokenBudget({ max: 30 })
+	it('charges completion by default and permits a valid overshoot', () => {
+		const budget = createTokenBudget({ max: 20 })
 
 		budget.consume(usage(100, 15, 115))
-		expect(budget.consumed).toBe(15)
-		budget.consume(usage(100, 15, 115))
-		// 15 + 15 = 30 — the completion scope crossed the ceiling.
-		expect(budget.consumed).toBe(30)
+		budget.consume(usage(50, 10, 60))
+
+		expect(budget.consumed).toBe(25)
+		expect(budget.remaining).toBe(0)
 		expect(budget.exhausted).toBe(true)
 		expect(budget.signal.aborted).toBe(true)
 	})
 
-	it("charges the total field when scope is 'total'", () => {
-		const budget = createTokenBudget({ max: 200, scope: 'total' })
+	it.each([
+		['total', 115],
+		['prompt', 100],
+	] satisfies readonly (readonly [TokenScope, number])[])(
+		'charges the %s field',
+		(scope, expected) => {
+			const budget = createTokenBudget({ max: 1_000, scope })
 
-		budget.consume(usage(100, 15, 115))
-		expect(budget.consumed).toBe(115)
-		budget.consume(usage(50, 40, 90))
-		// 115 + 90 = 205 >= 200 — the total scope trips it.
-		expect(budget.consumed).toBe(205)
-		expect(budget.signal.aborted).toBe(true)
-	})
+			budget.consume(usage(100, 15, 115))
 
-	it("charges the prompt field when scope is 'prompt'", () => {
-		const budget = createTokenBudget({ max: 120, scope: 'prompt' })
+			expect(budget.consumed).toBe(expected)
+		},
+	)
 
-		budget.consume(usage(100, 15, 115))
-		expect(budget.consumed).toBe(100)
-		expect(budget.signal.aborted).toBe(false)
-		budget.consume(usage(20, 5, 25))
-		// 100 + 20 = 120 — the prompt scope reaches the ceiling exactly.
-		expect(budget.consumed).toBe(120)
-		expect(budget.signal.aborted).toBe(true)
-	})
-
-	it('honors id and a parent signal', () => {
+	it('honors identity, parent reason, start, and clear', () => {
 		const parent = new AbortController()
-		const budget = createTokenBudget({ id: 'tokens-3', max: 1_000, signal: parent.signal })
-
-		expect(budget.id).toBe('tokens-3')
-
-		parent.abort()
-		expect(budget.signal.aborted).toBe(true)
-	})
-
-	it('a default id is assigned when none is supplied', () => {
-		const budget = createTokenBudget({ max: 1_000 })
-
-		// The createBudget UUID default flows through the token convenience.
-		expect(typeof budget.id).toBe('string')
-		expect(budget.id.length).toBeGreaterThan(0)
-	})
-
-	it('the chosen scope reads exactly its own field, ignoring the other usage fields', () => {
-		// A completion-scoped budget must NOT be advanced by prompt/total — only the
-		// completion field charges the tally even when the other fields are large.
-		const budget = createTokenBudget({ max: 10, scope: 'completion' })
-
-		budget.consume(usage(1_000, 4, 1_004))
-		expect(budget.consumed).toBe(4) // prompt 1_000 / total 1_004 ignored
-		expect(budget.signal.aborted).toBe(false)
-		budget.consume(usage(1_000, 6, 1_006))
-		expect(budget.consumed).toBe(10) // 4 + 6 reaches the ceiling
-		expect(budget.signal.aborted).toBe(true)
-	})
-
-	it('a zero in the scoped field is a no-op charge', () => {
-		// A provider response with zero completion tokens must not advance a completion
-		// budget — the tally only moves by the field's value.
-		const budget = createTokenBudget({ max: 100, scope: 'completion' })
-
-		budget.consume(usage(50, 0, 50))
-		expect(budget.consumed).toBe(0)
-		expect(budget.exhausted).toBe(false)
-		expect(budget.signal.aborted).toBe(false)
-	})
-
-	it('re-arms a fresh per-request signal without resetting the cumulative token spend', () => {
-		// The session pattern through the convenience: spend, re-arm, spend again — the
-		// cumulative total carries forward and trips a per-request signal at the ceiling.
-		const budget = createTokenBudget({ max: 100, scope: 'total' })
-
-		budget.consume(usage(20, 20, 40))
-		budget.start()
-		expect(budget.consumed).toBe(40)
-		expect(budget.signal.aborted).toBe(false)
-
-		budget.consume(usage(30, 30, 60)) // 40 + 60 = 100 crosses the lifetime ceiling
-		expect(budget.consumed).toBe(100)
-		expect(budget.exhausted).toBe(true)
-		expect(budget.signal.aborted).toBe(true)
-	})
-
-	it('createTokenBudget at max: 0 is born exhausted and trips on the first consume', () => {
-		const budget = createTokenBudget({ max: 0 })
-		const fired = createRecorder<readonly []>()
-		budget.signal.addEventListener('abort', fired.handler)
-
-		expect(budget.exhausted).toBe(true)
-
-		budget.consume(usage(0, 0, 0))
-		expect(budget.signal.aborted).toBe(true)
-		expect(fired.count).toBe(1)
-	})
-
-	it('createBudget passes the consume extractor through unchanged', () => {
-		// Proves the factory does not wrap or transform the consumer — a record extractor
-		// drives the tally exactly as written.
-		const budget = createBudget<{ readonly weight: number }>({
-			max: 10,
-			consume: (value) => value.weight,
+		const budget = createTokenBudget({
+			id: 'tokens-3',
+			max: 100,
+			scope: 'total',
+			signal: parent.signal,
 		})
 
-		budget.consume({ weight: 4 })
-		budget.consume({ weight: 4 })
-		expect(budget.consumed).toBe(8)
-		expect(budget.signal.aborted).toBe(false)
-		budget.consume({ weight: 2 })
-		expect(budget.signal.aborted).toBe(true)
+		budget.consume(usage(20, 20, 40))
+		const initial = budget.signal
+		budget.start()
+		expect(budget.id).toBe('tokens-3')
+		expect(budget.consumed).toBe(40)
+		expect(budget.signal).not.toBe(initial)
+
+		budget.clear()
+		expect(budget.consumed).toBe(0)
+		parent.abort('parent')
+		expect(budget.signal.reason).toBe('parent')
 	})
 
-	it('createBudget hands back a re-armable handle (start() is wired through)', () => {
-		// A factory-built handle is a full Budget: start() re-arms a fresh signal without
-		// resetting the tally, just like the class.
-		const budget = createBudget<number>({ max: 100, consume: identity })
+	it('assigns an id only when it is omitted', () => {
+		const generated = createTokenBudget({ max: 1_000 })
+		const empty = createTokenBudget({ id: '', max: 1_000 })
 
-		budget.consume(40)
-		const first = budget.signal
-		budget.start()
-
-		expect(budget.signal).not.toBe(first)
-		expect(budget.signal.aborted).toBe(false)
-		expect(budget.consumed).toBe(40)
+		expect(generated.id.length > 0).toBe(true)
+		expect(empty.id).toBe('')
 	})
 })
 
-describe('type-level', () => {
-	it('BudgetOptions<T> flows T through consume and createBudget returns BudgetInterface<T>', () => {
+describe('factory types', () => {
+	it('preserves generic budget and token contracts', () => {
 		expectTypeOf<BudgetOptions<number>['consume']>().toEqualTypeOf<(value: number) => number>()
-		expectTypeOf(createBudget<number>({ max: 1, consume: identity })).toEqualTypeOf<
+		expectTypeOf(createBudget<number>({ max: 1, consume: selectCharge })).toEqualTypeOf<
 			BudgetInterface<number>
 		>()
-
-		interface Cost {
-			readonly cost: number
-		}
-		expectTypeOf<BudgetOptions<Cost>['consume']>().toEqualTypeOf<(value: Cost) => number>()
-		expectTypeOf(createBudget<Cost>({ max: 1, consume: (value) => value.cost })).toEqualTypeOf<
-			BudgetInterface<Cost>
-		>()
-	})
-
-	it('TokenUsage exposes exactly prompt / completion / total readonly numbers', () => {
+		expectTypeOf<TokenScope>().toEqualTypeOf<'completion' | 'total' | 'prompt'>()
 		expectTypeOf<TokenUsage>().toEqualTypeOf<{
 			readonly prompt: number
 			readonly completion: number
 			readonly total: number
 		}>()
-	})
-
-	it('createTokenBudget accepts TokenBudgetOptions and returns BudgetInterface<TokenUsage>', () => {
-		expectTypeOf(createTokenBudget).toBeFunction()
 		expectTypeOf(createTokenBudget).parameter(0).toEqualTypeOf<TokenBudgetOptions>()
 		expectTypeOf(createTokenBudget({ max: 1 })).toEqualTypeOf<BudgetInterface<TokenUsage>>()
 	})
