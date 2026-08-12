@@ -4,7 +4,7 @@
 >
 > This is the substrate's third bounding signal, a peer to a cancellation signal (fires on `abort()`) and a deadline signal (fires on expiry). All three are plain `AbortSignal`s by design, so an agent loop combines them into one bound with `AbortSignal.any([abort, timeout, budget])` and reacts to whichever trips first — cancel, deadline, or cost. A budget deliberately carries no Emitter, clock, or I/O: its native signal is the complete observation boundary. It is a functional counter with a signal bolted to its ceiling — nothing more, so the surface stays small.
 >
-> Source: [`src/core`](../../src/core). Surfaced through the `@src/core` barrel.
+> Source: [`src/core`](../src/core). Surfaced through the `@src/core` barrel.
 
 ## Surface
 
@@ -179,13 +179,13 @@ budget.consume(200) // spends against the new window
 
 ## Tests
 
-- [`tests/guides.test.ts`](../../tests/guides.test.ts) — the `## Surface` ↔ `src/core` bijection (value + type exports) and the `BudgetInterface` ↔ `Budget` method bijection.
-- [`tests/src/core/Budget.test.ts`](../../tests/src/core/Budget.test.ts) — strict construction, cumulative and atomic consumption, valid overshoot, thrown-consumer identity, numeric overflow, zero-ceiling semantics, lifecycle re-arming/reset, parent reason preservation, and public type shape.
-- [`tests/src/core/factories.test.ts`](../../tests/src/core/factories.test.ts) — real generic/token factory behavior plus untyped scope, usage, options, hostile, and revoked boundary failures with exact structured errors.
-- [`tests/src/core/helpers.test.ts`](../../tests/src/core/helpers.test.ts) — direct option-helper fresh-copy and optional-key omission, exactly-once property reads, hostile getter containment, generic preservation, and exact error taxonomy/context.
-- [`tests/src/core/validators.test.ts`](../../tests/src/core/validators.test.ts) — total amount, native-signal, token-scope, and token-usage guards across valid, off-shape, hostile, and revoked values.
+- [`tests/guides.test.ts`](../tests/guides.test.ts) — the `## Surface` ↔ `src/core` bijection (value + type exports) and the `BudgetInterface` ↔ `Budget` method bijection.
+- [`tests/src/core/Budget.test.ts`](../tests/src/core/Budget.test.ts) — strict construction, cumulative and atomic consumption, valid overshoot, thrown-consumer identity, numeric overflow, zero-ceiling semantics, lifecycle re-arming/reset, parent reason preservation, and public type shape.
+- [`tests/src/core/factories.test.ts`](../tests/src/core/factories.test.ts) — real generic/token factory behavior plus untyped scope, usage, options, hostile, and revoked boundary failures with exact structured errors.
+- [`tests/src/core/helpers.test.ts`](../tests/src/core/helpers.test.ts) — direct option-helper fresh-copy and optional-key omission, exactly-once property reads, hostile getter containment, generic preservation, and exact error taxonomy/context.
+- [`tests/src/core/validators.test.ts`](../tests/src/core/validators.test.ts) — total amount, native-signal, token-scope, and token-usage guards across valid, off-shape, hostile, and revoked values.
 
 ## See also
 
-- [`AGENTS.md`](../../AGENTS.md) — the rules; §10 lifecycle (`start`, `clear`), §4.1 single-word members, §22 documentation-as-contracts.
-- [`../README.md`](../README.md) — the guides index.
+- [`AGENTS.md`](../AGENTS.md) — the rules; §10 lifecycle (`start`, `clear`), §4.1 single-word members, §22 documentation-as-contracts.
+- [`../README.md`](README.md) — the guides index.

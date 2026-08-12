@@ -227,7 +227,7 @@ describe('createTokenBudget', () => {
 	it.each([
 		['total', 115],
 		['prompt', 100],
-	] satisfies readonly (readonly [TokenScope, number])[])(
+	] satisfies ReadonlyArray<readonly [TokenScope, number]>)(
 		'charges the %s field',
 		(scope, expected) => {
 			const budget = createTokenBudget({ max: 1_000, scope })
