@@ -179,7 +179,7 @@ budget.consume(200) // spends against the new window
 
 ## Tests
 
-- [`tests/guides/parity.test.ts`](../../tests/guides/src/parity.test.ts) — the `## Surface` ↔ `src/core` bijection (value + type exports) and the `BudgetInterface` ↔ `Budget` method bijection.
+- [`tests/guides.test.ts`](../../tests/guides.test.ts) — the `## Surface` ↔ `src/core` bijection (value + type exports) and the `BudgetInterface` ↔ `Budget` method bijection.
 - [`tests/src/core/Budget.test.ts`](../../tests/src/core/Budget.test.ts) — strict construction, cumulative and atomic consumption, valid overshoot, thrown-consumer identity, numeric overflow, zero-ceiling semantics, lifecycle re-arming/reset, parent reason preservation, and public type shape.
 - [`tests/src/core/factories.test.ts`](../../tests/src/core/factories.test.ts) — real generic/token factory behavior plus untyped scope, usage, options, hostile, and revoked boundary failures with exact structured errors.
 - [`tests/src/core/helpers.test.ts`](../../tests/src/core/helpers.test.ts) — direct option-helper fresh-copy and optional-key omission, exactly-once property reads, hostile getter containment, generic preservation, and exact error taxonomy/context.
