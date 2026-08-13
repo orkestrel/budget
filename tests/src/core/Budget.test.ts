@@ -2,7 +2,8 @@ import type { BudgetInterface, BudgetOptions } from '@src/core'
 import { Budget } from '@src/core'
 import { ContractError, preview } from '@orkestrel/contract'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { captureContractError, captureError, createRecorder, selectCharge } from '../../setup.js'
+import { captureError, createRecorder } from '@orkestrel/test'
+import { captureContractError, selectCharge } from '../../setup.js'
 
 describe('Budget construction boundary', () => {
 	it.each([

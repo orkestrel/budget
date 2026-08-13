@@ -8,7 +8,8 @@ import type {
 import { createBudget, createTokenBudget, createTokenConsumer } from '@src/core'
 import { preview } from '@orkestrel/contract'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { captureContractError, createRecorder, selectCharge } from '../../setup.js'
+import { createRecorder } from '@orkestrel/test'
+import { captureContractError, selectCharge } from '../../setup.js'
 
 function usage(prompt: number, completion: number, total: number): TokenUsage {
 	return { prompt, completion, total }
