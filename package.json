@@ -1,6 +1,6 @@
 {
 	"name": "@orkestrel/budget",
-	"version": "0.0.7",
+	"version": "0.0.8",
 	"description": "A typed spending budget — a cumulative tally with an AbortSignal ceiling, start/consume/clear lifecycle, and a token-budget factory. Part of the @orkestrel line.",
 	"keywords": [
 		"abort-signal",
@@ -66,7 +66,7 @@
 		"prepublishOnly": "npm run format:check && npm run lint:check && npm run check && npm run build && npm test"
 	},
 	"dependencies": {
-		"@orkestrel/contract": "^0.0.12"
+		"@orkestrel/contract": "^0.0.13"
 	},
 	"devDependencies": {
 		"@microsoft/api-extractor": "^7.59.0",
