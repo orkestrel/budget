@@ -118,7 +118,7 @@ export function validateBudgetOptions<T>(options: BudgetOptions<T>): BudgetOptio
  */
 export function validateTokenBudgetOptions(options: TokenBudgetOptions): TokenBudgetOptions {
 	if (!isRecord(options)) {
-		throw new ContractError('createTokenBudget: options must be a plain record', {
+		throw new ContractError('TokenBudget: options must be a plain record', {
 			code: 'bound',
 			context: {
 				path: ['options'],
@@ -138,7 +138,7 @@ export function validateTokenBudgetOptions(options: TokenBudgetOptions): TokenBu
 		scope = options.scope
 		signal = options.signal
 	} catch (cause) {
-		throw new ContractError('createTokenBudget: options could not be read', {
+		throw new ContractError('TokenBudget: options could not be read', {
 			code: 'bound',
 			context: {
 				path: ['options'],
@@ -150,7 +150,7 @@ export function validateTokenBudgetOptions(options: TokenBudgetOptions): TokenBu
 	}
 
 	if (id !== undefined && !isString(id)) {
-		throw new ContractError('createTokenBudget: id must be a string when defined', {
+		throw new ContractError('TokenBudget: id must be a string when defined', {
 			code: 'literal',
 			context: {
 				path: ['options', 'id'],
@@ -160,7 +160,7 @@ export function validateTokenBudgetOptions(options: TokenBudgetOptions): TokenBu
 		})
 	}
 	if (!isBudgetAmount(max)) {
-		throw new ContractError('createTokenBudget: max must be finite and nonnegative', {
+		throw new ContractError('TokenBudget: max must be finite and nonnegative', {
 			code: 'range',
 			context: {
 				path: ['options', 'max'],
@@ -170,7 +170,7 @@ export function validateTokenBudgetOptions(options: TokenBudgetOptions): TokenBu
 		})
 	}
 	if (scope !== undefined && !isTokenScope(scope)) {
-		throw new ContractError('createTokenBudget: scope is not supported', {
+		throw new ContractError('TokenBudget: scope is not supported', {
 			code: 'literal',
 			context: {
 				path: ['options', 'scope'],
@@ -180,7 +180,7 @@ export function validateTokenBudgetOptions(options: TokenBudgetOptions): TokenBu
 		})
 	}
 	if (signal !== undefined && !isBudgetSignal(signal)) {
-		throw new ContractError('createTokenBudget: signal must be native when defined', {
+		throw new ContractError('TokenBudget: signal must be native when defined', {
 			code: 'placement',
 			context: {
 				path: ['options', 'signal'],
