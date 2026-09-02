@@ -4,7 +4,7 @@ import { validateBudgetOptions } from './helpers.js'
 import { isBudgetAmount } from './validators.js'
 
 /**
- * A cumulative cost handle whose native `AbortSignal` aborts at its ceiling.
+ * Represents a cumulative cost handle whose native `AbortSignal` aborts at its ceiling.
  *
  * @remarks
  * `consume(value)` invokes the configured consumer before changing state, then

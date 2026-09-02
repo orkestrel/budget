@@ -1,5 +1,5 @@
 /**
- * Options for constructing a cumulative budget.
+ * Represents the options for constructing a cumulative budget.
  *
  * @remarks
  * `max` is a finite nonnegative ceiling. `consumer` extracts the finite
@@ -13,18 +13,18 @@
  * ```
  */
 export interface BudgetOptions<T> {
-	/** Trace label for the budget; omission generates a random UUID. */
+	/** Holds the trace label for the budget; omission generates a random UUID. */
 	readonly id?: string
-	/** Finite nonnegative cumulative ceiling. */
+	/** Holds the finite nonnegative cumulative ceiling. */
 	readonly max: number
 	/** Extracts the finite nonnegative charge from a consumed value. */
 	readonly consumer: (value: T) => number
-	/** Native parent signal composed with the budget's owned exhaustion signal. */
+	/** Holds the native parent signal composed with the budget's owned exhaustion signal. */
 	readonly signal?: AbortSignal
 }
 
 /**
- * A cumulative cost handle whose native signal aborts at its ceiling.
+ * Represents a cumulative cost handle whose native signal aborts at its ceiling.
  *
  * @example
  * ```ts
@@ -36,33 +36,33 @@ export interface BudgetOptions<T> {
  * ```
  */
 export interface BudgetInterface<T> {
-	/** Stable trace label. */
+	/** Holds the stable trace label. */
 	readonly id: string
-	/** Current native owned-or-parent-composed observation signal. */
+	/** Holds the current native owned-or-parent-composed observation signal. */
 	readonly signal: AbortSignal
-	/** Validated finite nonnegative ceiling. */
+	/** Holds the validated finite nonnegative ceiling. */
 	readonly max: number
-	/** Cumulative finite nonnegative accepted charges. */
+	/** Holds the cumulative finite nonnegative accepted charges. */
 	readonly consumed: number
-	/** Nonnegative headroom derived from `max` and `consumed`. */
+	/** Holds the nonnegative headroom derived from `max` and `consumed`. */
 	readonly remaining: number
-	/** Whether the cumulative tally has reached or exceeded `max`. */
+	/** Indicates whether the cumulative tally has reached or exceeded `max`. */
 	readonly exhausted: boolean
 	/**
-	 * Re-arm a fresh signal without resetting the cumulative tally.
+	 * Re-arms a fresh signal without resetting the cumulative tally.
 	 *
 	 * @returns Nothing
 	 */
 	start(): void
 	/**
-	 * Validate and atomically add the charge extracted from a domain value.
+	 * Validates and atomically adds the charge extracted from a domain value.
 	 *
 	 * @param value - Domain value passed to the configured consumer
 	 * @returns Nothing
 	 */
 	consume(value: T): void
 	/**
-	 * Reset the tally and re-arm a fresh signal.
+	 * Resets the tally and re-arms a fresh signal.
 	 *
 	 * @returns Nothing
 	 */
@@ -70,7 +70,7 @@ export interface BudgetInterface<T> {
 }
 
 /**
- * Token-usage field selected as the charge for a token budget.
+ * Names the token-usage field selected as the charge for a token budget.
  *
  * @example
  * ```ts
@@ -80,7 +80,7 @@ export interface BudgetInterface<T> {
 export type TokenScope = 'completion' | 'total' | 'prompt'
 
 /**
- * Options for constructing a token budget.
+ * Represents the options for constructing a token budget.
  *
  * @remarks
  * `scope` defaults to `completion`. All other fields have the same strict
@@ -92,18 +92,18 @@ export type TokenScope = 'completion' | 'total' | 'prompt'
  * ```
  */
 export interface TokenBudgetOptions {
-	/** Trace label for the budget; omission generates a random UUID. */
+	/** Holds the trace label for the budget; omission generates a random UUID. */
 	readonly id?: string
-	/** Finite nonnegative token ceiling. */
+	/** Holds the finite nonnegative token ceiling. */
 	readonly max: number
-	/** Token usage field charged per provider response. */
+	/** Names the token usage field charged per provider response. */
 	readonly scope?: TokenScope
-	/** Native parent signal composed with the budget's owned exhaustion signal. */
+	/** Holds the native parent signal composed with the budget's owned exhaustion signal. */
 	readonly signal?: AbortSignal
 }
 
 /**
- * Canonical finite nonnegative token counts reported for one provider call.
+ * Represents the canonical finite nonnegative token counts reported for one provider call.
  *
  * @example
  * ```ts

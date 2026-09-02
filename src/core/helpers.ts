@@ -100,7 +100,7 @@ export function validateBudgetOptions<T>(options: BudgetOptions<T>): BudgetOptio
 }
 
 /**
- * Validate and normalize token-budget construction options.
+ * Validates and normalizes token-budget construction options.
  *
  * @remarks
  * Each property is read exactly once before validation. The returned object is
