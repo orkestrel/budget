@@ -54,7 +54,7 @@ or nonfinite cumulative overflow leaves the tally and signal unchanged.
 
 For the full surface — the `Budget` class, `BudgetInterface`, and the
 `createTokenBudget` convenience — see
-[`guides/src/budget.md`](guides/src/budget.md).
+[`guides/budget.md`](guides/budget.md).
 
 ## Package
 
