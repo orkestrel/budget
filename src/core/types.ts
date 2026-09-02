@@ -2,14 +2,14 @@
  * Options for constructing a cumulative budget.
  *
  * @remarks
- * `max` is a finite nonnegative ceiling. `consume` extracts the finite
+ * `max` is a finite nonnegative ceiling. `consumer` extracts the finite
  * nonnegative charge from each domain value. Omitted `id` values generate a
  * random UUID, and an optional native parent `signal` participates in the
  * exposed composite signal.
  *
  * @example
  * ```ts
- * const options: BudgetOptions<number> = { max: 100, consume: (value) => value }
+ * const options: BudgetOptions<number> = { max: 100, consumer: (value) => value }
  * ```
  */
 export interface BudgetOptions<T> {
@@ -17,8 +17,8 @@ export interface BudgetOptions<T> {
 	readonly id?: string
 	/** Finite nonnegative cumulative ceiling. */
 	readonly max: number
-	/** Extract the finite nonnegative charge from a consumed value. */
-	readonly consume: (value: T) => number
+	/** Extracts the finite nonnegative charge from a consumed value. */
+	readonly consumer: (value: T) => number
 	/** Native parent signal composed with the budget's owned exhaustion signal. */
 	readonly signal?: AbortSignal
 }
@@ -30,7 +30,7 @@ export interface BudgetOptions<T> {
  * ```ts
  * const budget: BudgetInterface<number> = createBudget({
  * 	max: 100,
- * 	consume: (value) => value,
+ * 	consumer: (value) => value,
  * })
  * budget.consume(25)
  * ```

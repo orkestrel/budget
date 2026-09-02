@@ -26,7 +26,7 @@ npm install @orkestrel/budget
 ```ts
 import { createBudget, createTokenBudget } from '@orkestrel/budget'
 
-const budget = createBudget<number>({ max: 10_000, consume: (cost) => cost })
+const budget = createBudget<number>({ max: 10_000, consumer: (cost) => cost })
 budget.start()
 budget.signal.addEventListener('abort', () => stop(), { once: true }) // fires when exhausted
 budget.consume(4_000) // remaining 6_000

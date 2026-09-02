@@ -11,7 +11,7 @@ import { captureError } from '@orkestrel/test'
  *
  * @example
  * ```ts
- * const error = captureContractError(() => createBudget({ max: -1, consume: Number }))
+ * const error = captureContractError(() => createBudget({ max: -1, consumer: Number }))
  * ```
  */
 export function captureContractError(operation: () => unknown): ContractError {

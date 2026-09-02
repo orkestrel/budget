@@ -17,7 +17,7 @@ function usage(prompt: number, completion: number, total: number): TokenUsage {
 
 describe('createBudget', () => {
 	it('returns a working BudgetInterface', () => {
-		const budget = createBudget<number>({ max: 100, consume: selectCharge })
+		const budget = createBudget<number>({ max: 100, consumer: selectCharge })
 		const fired = createRecorder<readonly []>()
 		budget.signal.addEventListener('abort', fired.handler)
 
@@ -37,7 +37,7 @@ describe('createBudget', () => {
 		const budget = createBudget<number>({
 			id: 'budget-7',
 			max: 100,
-			consume: selectCharge,
+			consumer: selectCharge,
 			signal: parent.signal,
 		})
 
@@ -49,12 +49,12 @@ describe('createBudget', () => {
 	})
 
 	it('rejects an untyped non-function consumer through the factory boundary', () => {
-		const options = { max: 10, consume: 1 }
+		const options = { max: 10, consumer: 1 }
 		const error = captureContractError(() => Reflect.apply(createBudget, undefined, [options]))
 
 		expect(error.code).toBe('placement')
 		expect(error.context).toEqual({
-			path: ['options', 'consume'],
+			path: ['options', 'consumer'],
 			limit: 'function',
 			received: '1',
 		})
@@ -272,8 +272,8 @@ describe('createTokenBudget', () => {
 
 describe('factory types', () => {
 	it('preserves generic budget and token contracts', () => {
-		expectTypeOf<BudgetOptions<number>['consume']>().toEqualTypeOf<(value: number) => number>()
-		expectTypeOf(createBudget<number>({ max: 1, consume: selectCharge })).toEqualTypeOf<
+		expectTypeOf<BudgetOptions<number>['consumer']>().toEqualTypeOf<(value: number) => number>()
+		expectTypeOf(createBudget<number>({ max: 1, consumer: selectCharge })).toEqualTypeOf<
 			BudgetInterface<number>
 		>()
 		expectTypeOf<TokenScope>().toEqualTypeOf<'completion' | 'total' | 'prompt'>()

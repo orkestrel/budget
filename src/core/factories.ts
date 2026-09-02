@@ -11,7 +11,7 @@ import { validateTokenBudgetOptions } from './helpers.js'
 import { isBudgetAmount, isTokenScope, isTokenUsage } from './validators.js'
 
 /**
- * Create a cumulative budget whose native signal aborts at its ceiling.
+ * Creates a cumulative budget whose native signal aborts at its ceiling.
  *
  * @param options - Strict budget construction options
  * @returns A reusable cumulative budget
@@ -22,7 +22,7 @@ import { isBudgetAmount, isTokenScope, isTokenUsage } from './validators.js'
  * ```ts
  * import { createBudget } from '@orkestrel/budget'
  *
- * const budget = createBudget<number>({ max: 10_000, consume: (cost) => cost })
+ * const budget = createBudget<number>({ max: 10_000, consumer: (cost) => cost })
  * budget.consume(4_000)
  * ```
  */
@@ -31,7 +31,7 @@ export function createBudget<T>(options: BudgetOptions<T>): BudgetInterface<T> {
 }
 
 /**
- * Create a validated token consumer for one selected usage field.
+ * Creates a validated token consumer for one selected usage field.
  *
  * @param scope - Token usage field to charge
  * @returns A consumer that validates usage and returns the selected charge
@@ -40,11 +40,11 @@ export function createBudget<T>(options: BudgetOptions<T>): BudgetInterface<T> {
  *
  * @example
  * ```ts
- * const consume = createTokenConsumer('total')
- * consume({ prompt: 100, completion: 15, total: 115 }) // 115
+ * const consumer = createTokenConsumer('total')
+ * consumer({ prompt: 100, completion: 15, total: 115 }) // 115
  * ```
  */
-export function createTokenConsumer(scope: TokenScope): BudgetOptions<TokenUsage>['consume'] {
+export function createTokenConsumer(scope: TokenScope): BudgetOptions<TokenUsage>['consumer'] {
 	if (!isTokenScope(scope)) {
 		throw new ContractError('createTokenConsumer: scope is not supported', {
 			code: 'literal',
@@ -96,7 +96,7 @@ export function createTokenConsumer(scope: TokenScope): BudgetOptions<TokenUsage
 }
 
 /**
- * Create a token budget charging one validated usage field per provider call.
+ * Creates a token budget charging one validated usage field per provider call.
  *
  * @remarks
  * `scope` defaults to `completion`. Construction validates its own untyped
@@ -121,7 +121,7 @@ export function createTokenBudget(options: TokenBudgetOptions): BudgetInterface<
 	return createBudget({
 		...(input.id === undefined ? {} : { id: input.id }),
 		max: input.max,
-		consume: consumer,
+		consumer,
 		...(input.signal === undefined ? {} : { signal: input.signal }),
 	})
 }

@@ -24,7 +24,7 @@ describe('Budget construction boundary', () => {
 	it('contains unreadable options and preserves the cause', () => {
 		const descriptor = Object.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted')
 		if (descriptor === undefined) throw new Error('Expected the native aborted descriptor')
-		const options = { consume: selectCharge }
+		const options = { consumer: selectCharge }
 		Object.defineProperty(options, 'max', descriptor)
 		const error = captureContractError(() => Reflect.construct(Budget, [options]))
 
@@ -39,7 +39,7 @@ describe('Budget construction boundary', () => {
 
 	it('rejects a defined non-string id with exact literal context', () => {
 		const error = captureContractError(() =>
-			Reflect.construct(Budget, [{ id: 7, max: 10, consume: selectCharge }]),
+			Reflect.construct(Budget, [{ id: 7, max: 10, consumer: selectCharge }]),
 		)
 
 		expect(error.code).toBe('literal')
@@ -57,7 +57,7 @@ describe('Budget construction boundary', () => {
 		['a negative number', -1],
 	])('rejects %s max with exact range context', (_label, value) => {
 		const error = captureContractError(() =>
-			Reflect.construct(Budget, [{ max: value, consume: selectCharge }]),
+			Reflect.construct(Budget, [{ max: value, consumer: selectCharge }]),
 		)
 
 		expect(error.code).toBe('range')
@@ -70,12 +70,12 @@ describe('Budget construction boundary', () => {
 
 	it('rejects a non-function consumer with exact placement context', () => {
 		const error = captureContractError(() =>
-			Reflect.construct(Budget, [{ max: 10, consume: 'ten' }]),
+			Reflect.construct(Budget, [{ max: 10, consumer: 'ten' }]),
 		)
 
 		expect(error.code).toBe('placement')
 		expect(error.context).toEqual({
-			path: ['options', 'consume'],
+			path: ['options', 'consumer'],
 			limit: 'function',
 			received: '"ten"',
 		})
@@ -87,7 +87,7 @@ describe('Budget construction boundary', () => {
 		['a spoof', { aborted: false }],
 	])('rejects %s parent signal with exact placement context', (_label, signal) => {
 		const error = captureContractError(() =>
-			Reflect.construct(Budget, [{ max: 10, consume: selectCharge, signal }]),
+			Reflect.construct(Budget, [{ max: 10, consumer: selectCharge, signal }]),
 		)
 
 		expect(error.code).toBe('placement')
@@ -103,14 +103,14 @@ describe('Budget construction boundary', () => {
 		revoked.revoke()
 
 		expect(() =>
-			Reflect.construct(Budget, [{ max: 10, consume: selectCharge, signal: revoked.proxy }]),
+			Reflect.construct(Budget, [{ max: 10, consumer: selectCharge, signal: revoked.proxy }]),
 		).toThrow(ContractError)
 	})
 
 	it('accepts fractional, zero, and negative-zero ceilings', () => {
-		const fraction = new Budget<number>({ max: 1.5, consume: selectCharge })
-		const zero = new Budget<number>({ max: 0, consume: selectCharge })
-		const negativeZero = new Budget<number>({ max: -0, consume: selectCharge })
+		const fraction = new Budget<number>({ max: 1.5, consumer: selectCharge })
+		const zero = new Budget<number>({ max: 0, consumer: selectCharge })
+		const negativeZero = new Budget<number>({ max: -0, consumer: selectCharge })
 
 		expect(fraction.max).toBe(1.5)
 		expect(zero.exhausted).toBe(true)
@@ -120,9 +120,9 @@ describe('Budget construction boundary', () => {
 	})
 
 	it('preserves an empty id and generates only for undefined', () => {
-		const empty = new Budget<number>({ id: '', max: 10, consume: selectCharge })
-		const generated = new Budget<number>({ max: 10, consume: selectCharge })
-		const other = new Budget<number>({ max: 10, consume: selectCharge })
+		const empty = new Budget<number>({ id: '', max: 10, consumer: selectCharge })
+		const generated = new Budget<number>({ max: 10, consumer: selectCharge })
+		const other = new Budget<number>({ max: 10, consumer: selectCharge })
 
 		expect(empty.id).toBe('')
 		expect(generated.id.length > 0).toBe(true)
@@ -132,7 +132,7 @@ describe('Budget construction boundary', () => {
 
 describe('Budget consumption', () => {
 	it('accumulates finite nonnegative integer and fractional charges', () => {
-		const budget = new Budget<number>({ max: 10, consume: selectCharge })
+		const budget = new Budget<number>({ max: 10, consumer: selectCharge })
 
 		budget.consume(0)
 		budget.consume(1.25)
@@ -145,7 +145,7 @@ describe('Budget consumption', () => {
 	})
 
 	it('trips exactly once at the ceiling and permits valid overshoot', () => {
-		const budget = new Budget<number>({ max: 10, consume: selectCharge })
+		const budget = new Budget<number>({ max: 10, consumer: selectCharge })
 		const fired = createRecorder<readonly []>()
 		budget.signal.addEventListener('abort', fired.handler)
 
@@ -166,7 +166,7 @@ describe('Budget consumption', () => {
 		['positive infinity', Number.POSITIVE_INFINITY],
 		['negative infinity', Number.NEGATIVE_INFINITY],
 	])('rejects %s atomically', (_label, charge) => {
-		const budget = new Budget<number>({ max: 100, consume: () => charge })
+		const budget = new Budget<number>({ max: 100, consumer: () => charge })
 		const signal = budget.signal
 		const error = captureContractError(() => budget.consume(1))
 
@@ -185,7 +185,7 @@ describe('Budget consumption', () => {
 		const failure = new Error('consumer failed')
 		const budget = new Budget<number>({
 			max: 100,
-			consume: () => {
+			consumer: () => {
 				throw failure
 			},
 		})
@@ -199,7 +199,7 @@ describe('Budget consumption', () => {
 	})
 
 	it('rejects nonfinite tally overflow atomically', () => {
-		const budget = new Budget<number>({ max: Number.MAX_VALUE, consume: selectCharge })
+		const budget = new Budget<number>({ max: Number.MAX_VALUE, consumer: selectCharge })
 		const charge = Number.MAX_VALUE * 0.75
 		budget.consume(charge)
 		const signal = budget.signal
@@ -219,7 +219,7 @@ describe('Budget consumption', () => {
 	it('uses a domain consumer before committing its returned charge', () => {
 		const budget = new Budget<{ readonly weight: number }>({
 			max: 10,
-			consume: (value) => value.weight,
+			consumer: (value) => value.weight,
 		})
 
 		budget.consume({ weight: 4 })
@@ -233,7 +233,7 @@ describe('Budget consumption', () => {
 
 describe('Budget lifecycle', () => {
 	it('supports consume before start on the construction signal', () => {
-		const budget = new Budget<number>({ max: 10, consume: selectCharge })
+		const budget = new Budget<number>({ max: 10, consumer: selectCharge })
 		const signal = budget.signal
 		const fired = createRecorder<readonly []>()
 		signal.addEventListener('abort', fired.handler)
@@ -247,7 +247,7 @@ describe('Budget lifecycle', () => {
 	})
 
 	it('start re-arms without resetting cumulative consumption', () => {
-		const budget = new Budget<number>({ max: 10, consume: selectCharge })
+		const budget = new Budget<number>({ max: 10, consumer: selectCharge })
 		budget.consume(4)
 		const first = budget.signal
 
@@ -262,7 +262,7 @@ describe('Budget lifecycle', () => {
 	})
 
 	it('start on an exhausted budget re-arms immediately aborted', () => {
-		const budget = new Budget<number>({ max: 10, consume: selectCharge })
+		const budget = new Budget<number>({ max: 10, consumer: selectCharge })
 		budget.consume(11)
 		const first = budget.signal
 
@@ -275,7 +275,7 @@ describe('Budget lifecycle', () => {
 	})
 
 	it('clear resets the tally and re-arms a reusable signal', () => {
-		const budget = new Budget<number>({ max: 10, consume: selectCharge })
+		const budget = new Budget<number>({ max: 10, consumer: selectCharge })
 		budget.consume(10)
 		const exhausted = budget.signal
 
@@ -291,8 +291,8 @@ describe('Budget lifecycle', () => {
 	})
 
 	it('zero is derived exhausted but aborts only on start or consume', () => {
-		const started = new Budget<number>({ max: 0, consume: selectCharge })
-		const consumed = new Budget<number>({ max: 0, consume: selectCharge })
+		const started = new Budget<number>({ max: 0, consumer: selectCharge })
+		const consumed = new Budget<number>({ max: 0, consumer: selectCharge })
 
 		expect(started.exhausted).toBe(true)
 		expect(started.signal.aborted).toBe(false)
@@ -306,7 +306,7 @@ describe('Budget lifecycle', () => {
 	})
 
 	it('clear restores the zero-ceiling born state until the next operation', () => {
-		const budget = new Budget<number>({ max: 0, consume: selectCharge })
+		const budget = new Budget<number>({ max: 0, consumer: selectCharge })
 		budget.start()
 		expect(budget.signal.aborted).toBe(true)
 
@@ -324,7 +324,7 @@ describe('Budget parent composition', () => {
 	it('parent aborts the exposed signal without exhausting the tally', () => {
 		const parent = new AbortController()
 		const reason = new Error('cancelled')
-		const budget = new Budget<number>({ max: 10, consume: selectCharge, signal: parent.signal })
+		const budget = new Budget<number>({ max: 10, consumer: selectCharge, signal: parent.signal })
 
 		parent.abort(reason)
 
@@ -339,7 +339,7 @@ describe('Budget parent composition', () => {
 		const reason = new Error('already cancelled')
 		parent.abort(reason)
 
-		const budget = new Budget<number>({ max: 10, consume: selectCharge, signal: parent.signal })
+		const budget = new Budget<number>({ max: 10, consumer: selectCharge, signal: parent.signal })
 
 		expect(budget.signal.aborted).toBe(true)
 		expect(budget.signal.reason).toBe(reason)
@@ -349,7 +349,7 @@ describe('Budget parent composition', () => {
 	it('start and clear recompose the same parent with its reason', () => {
 		const parent = new AbortController()
 		const reason = new Error('late cancellation')
-		const budget = new Budget<number>({ max: 10, consume: selectCharge, signal: parent.signal })
+		const budget = new Budget<number>({ max: 10, consumer: selectCharge, signal: parent.signal })
 
 		budget.start()
 		const started = budget.signal
@@ -366,7 +366,7 @@ describe('Budget parent composition', () => {
 
 	it('own exhaustion aborts while a live parent remains intact', () => {
 		const parent = new AbortController()
-		const budget = new Budget<number>({ max: 10, consume: selectCharge, signal: parent.signal })
+		const budget = new Budget<number>({ max: 10, consumer: selectCharge, signal: parent.signal })
 
 		budget.consume(10)
 
@@ -389,6 +389,6 @@ describe('Budget type shape', () => {
 		expectTypeOf<BudgetInterface<number>['start']>().toEqualTypeOf<() => void>()
 		expectTypeOf<BudgetInterface<number>['consume']>().toEqualTypeOf<(value: number) => void>()
 		expectTypeOf<BudgetInterface<number>['clear']>().toEqualTypeOf<() => void>()
-		expectTypeOf<BudgetOptions<number>['consume']>().toEqualTypeOf<(value: number) => number>()
+		expectTypeOf<BudgetOptions<number>['consumer']>().toEqualTypeOf<(value: number) => number>()
 	})
 })

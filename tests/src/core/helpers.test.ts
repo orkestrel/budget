@@ -23,7 +23,7 @@ const tokenHandler: ProxyHandler<TokenBudgetOptions> = {
 
 describe('validateBudgetOptions', () => {
 	it('returns a fresh copy and omits absent optional keys', () => {
-		const input: BudgetOptions<number> = { max: 10, consume: selectCharge }
+		const input: BudgetOptions<number> = { max: 10, consumer: selectCharge }
 		const output = validateBudgetOptions(input)
 
 		expect(output).not.toBe(input)
@@ -37,7 +37,7 @@ describe('validateBudgetOptions', () => {
 		const input: BudgetOptions<number> = {
 			id: '',
 			max: 10,
-			consume: selectCharge,
+			consumer: selectCharge,
 			signal,
 		}
 		const output = validateBudgetOptions(input)
@@ -51,20 +51,20 @@ describe('validateBudgetOptions', () => {
 	it('reads each declared property exactly once', () => {
 		budgetReads = []
 		const input = new Proxy<BudgetOptions<number>>(
-			{ id: 'meter', max: 10, consume: selectCharge, signal: new AbortController().signal },
+			{ id: 'meter', max: 10, consumer: selectCharge, signal: new AbortController().signal },
 			budgetHandler,
 		)
 
 		const output = validateBudgetOptions(input)
 
 		expect(output.id).toBe('meter')
-		expect(budgetReads).toEqual(['id', 'max', 'consume', 'signal'])
+		expect(budgetReads).toEqual(['id', 'max', 'consumer', 'signal'])
 	})
 
 	it('contains a hostile getter and preserves its cause', () => {
 		const descriptor = Object.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted')
 		if (descriptor === undefined) throw new Error('Expected the native aborted descriptor')
-		const input = { consume: selectCharge }
+		const input = { consumer: selectCharge }
 		Object.defineProperty(input, 'max', descriptor)
 		const error = captureContractError(() =>
 			Reflect.apply(validateBudgetOptions, undefined, [input]),
@@ -83,7 +83,7 @@ describe('validateBudgetOptions', () => {
 		['options', null, 'bound', ['options'], 'plain record', preview(null)],
 		[
 			'id',
-			{ id: 1, max: 10, consume: selectCharge },
+			{ id: 1, max: 10, consumer: selectCharge },
 			'literal',
 			['options', 'id'],
 			'string or undefined',
@@ -91,16 +91,16 @@ describe('validateBudgetOptions', () => {
 		],
 		[
 			'max',
-			{ max: Number.POSITIVE_INFINITY, consume: selectCharge },
+			{ max: Number.POSITIVE_INFINITY, consumer: selectCharge },
 			'range',
 			['options', 'max'],
 			'finite nonnegative number',
 			'Infinity',
 		],
-		['consume', { max: 10, consume: 1 }, 'placement', ['options', 'consume'], 'function', '1'],
+		['consumer', { max: 10, consumer: 1 }, 'placement', ['options', 'consumer'], 'function', '1'],
 		[
 			'signal',
-			{ max: 10, consume: selectCharge, signal: { aborted: false } },
+			{ max: 10, consumer: selectCharge, signal: { aborted: false } },
 			'placement',
 			['options', 'signal'],
 			'native AbortSignal or undefined',

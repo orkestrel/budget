@@ -13,7 +13,7 @@ Create a cost handle, `start()` it, and race its `signal` against work; `consume
 ```ts
 import { createBudget } from '@orkestrel/budget'
 
-const budget = createBudget<number>({ max: 10_000, consume: (cost) => cost })
+const budget = createBudget<number>({ max: 10_000, consumer: (cost) => cost })
 budget.start()
 budget.signal.addEventListener('abort', () => stop()) // fires when exhausted
 budget.consume(4_000) // remaining 6_000
@@ -22,13 +22,13 @@ budget.consume(7_000) // crosses 10_000 — fires `signal`
 
 **What happens:** `consume(value)` runs your extractor first, validates its result as a finite nonnegative charge, and atomically adds it to `consumed`; the moment cumulative `consumed` reaches `max`, `exhausted` flips `true` and `signal` fires — exactly once. A valid charge may overshoot the ceiling. A thrown extractor, invalid charge, or nonfinite cumulative overflow leaves the tally and signal unchanged. `consumed` is the lifetime spend and only ever grows after successful consumption. `start()` re-arms a fresh per-request `signal` WITHOUT resetting `consumed`, so the ceiling stays one running total across many requests; a budget already at or past `max` arms an immediately-aborted signal, bounding the next request from its first tick. `remaining` is `max - consumed` floored at zero, and `exhausted` is simply `consumed >= max` — both are live reads off the same counter.
 
-**Options:** pass a parent `signal` to link an external cancel — the exposed `signal` then fires on EITHER exhaustion OR the parent aborting (via `AbortSignal.any`) and preserves the first reason. Pass a string `id` to label a handle for tracing, or omit it for a random UUID. Construction strictly requires a plain options record, a finite nonnegative `max`, a function `consume`, and a native `AbortSignal` when `signal` is present. Invalid JavaScript-boundary input throws a structured `ContractError`. `max: 0` is derived as exhausted immediately, while its signal remains un-aborted until `start()` or `consume()` applies the ceiling.
+**Options:** pass a parent `signal` to link an external cancel — the exposed `signal` then fires on EITHER exhaustion OR the parent aborting (via `AbortSignal.any`) and preserves the first reason. Pass a string `id` to label a handle for tracing, or omit it for a random UUID. Construction strictly requires a plain options record, a finite nonnegative `max`, a function `consumer`, and a native `AbortSignal` when `signal` is present. Invalid JavaScript-boundary input throws a structured `ContractError`. `max: 0` is derived as exhausted immediately, while its signal remains un-aborted until `start()` or `consume()` applies the ceiling.
 
 ### Factories
 
 | API                   | Kind     | Summary                                                                                                             |
 | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
-| `createBudget`        | function | Create a `BudgetInterface<T>` for `max` with a `consume` extractor, optionally a trace `id` and a parent `signal`.  |
+| `createBudget`        | function | Create a `BudgetInterface<T>` for `max` with a `consumer` extractor, optionally a trace `id` and a parent `signal`. |
 | `createTokenConsumer` | function | Create a unary consumer that charges one selected `TokenUsage` field.                                               |
 | `createTokenBudget`   | function | Create a `BudgetInterface<TokenUsage>` charging a chosen `scope` field (`completion` default / `total` / `prompt`). |
 
@@ -58,7 +58,7 @@ budget.consume(7_000) // crosses 10_000 — fires `signal`
 
 | Type                 | Kind      | Shape                                                                                                                                |
 | -------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `BudgetOptions`      | interface | `{ id?: string; max: number; consume: (value: T) => number; signal?: AbortSignal }` — options for `createBudget` / the constructor.  |
+| `BudgetOptions`      | interface | `{ id?: string; max: number; consumer: (value: T) => number; signal?: AbortSignal }` — options for `createBudget` / the constructor. |
 | `TokenBudgetOptions` | interface | `{ id?: string; max: number; scope?: 'completion' \| 'total' \| 'prompt'; signal?: AbortSignal }` — options for `createTokenBudget`. |
 | `BudgetInterface`    | interface | `id` / `signal` / `max` / `consumed` / `remaining` / `exhausted` data members + the `start` / `consume` / `clear` methods.           |
 | `TokenScope`         | type      | `'completion' \| 'total' \| 'prompt'` — the exported token-usage field selector.                                                     |
@@ -107,7 +107,7 @@ The dominant use: bound how much work may spend by racing it against the budget 
 ```ts
 import { createBudget } from '@orkestrel/budget'
 
-const budget = createBudget<number>({ max: 1_000_000, consume: (bytes) => bytes })
+const budget = createBudget<number>({ max: 1_000_000, consumer: (bytes) => bytes })
 budget.start()
 budget.signal.addEventListener('abort', () => abortStream(), { once: true })
 
@@ -161,7 +161,7 @@ for (const request of requests) {
 ```ts
 import { createBudget } from '@orkestrel/budget'
 
-const budget = createBudget<number>({ max: 1_000, consume: (n) => n })
+const budget = createBudget<number>({ max: 1_000, consumer: (n) => n })
 budget.start()
 budget.consume(1_000) // crosses the ceiling — signal fires, exhausted is true
 

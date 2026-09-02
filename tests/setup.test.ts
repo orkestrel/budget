@@ -50,7 +50,7 @@ describe('captureContractError', () => {
 
 describe('selectCharge', () => {
 	it('returns every charge unchanged, including negative zero and NaN', () => {
-		// A suite passes this as the `consume` option so a `consume(n)` call charges exactly
+		// A suite passes this as the `consumer` option so a `consume(n)` call charges exactly
 		// `n`. The boundary values are the ones a charge selector can silently normalize:
 		// `toBe` compares with `Object.is`, so a `-0` widened to `0` and a lost `NaN` both
 		// redden.

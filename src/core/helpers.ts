@@ -3,7 +3,7 @@ import { ContractError, isFunction, isRecord, isString, preview } from '@orkestr
 import { isBudgetAmount, isBudgetSignal, isTokenScope } from './validators.js'
 
 /**
- * Validate and normalize budget construction options.
+ * Validates and normalizes budget construction options.
  *
  * @remarks
  * Each property is read exactly once before validation. The returned object is
@@ -16,7 +16,7 @@ import { isBudgetAmount, isBudgetSignal, isTokenScope } from './validators.js'
  *
  * @example
  * ```ts
- * const options = validateBudgetOptions({ max: 100, consume: (value: number) => value })
+ * const options = validateBudgetOptions({ max: 100, consumer: (value: number) => value })
  * ```
  */
 export function validateBudgetOptions<T>(options: BudgetOptions<T>): BudgetOptions<T> {
@@ -33,12 +33,12 @@ export function validateBudgetOptions<T>(options: BudgetOptions<T>): BudgetOptio
 
 	let id: BudgetOptions<T>['id']
 	let max: BudgetOptions<T>['max']
-	let consume: BudgetOptions<T>['consume']
+	let consumer: BudgetOptions<T>['consumer']
 	let signal: BudgetOptions<T>['signal']
 	try {
 		id = options.id
 		max = options.max
-		consume = options.consume
+		consumer = options.consumer
 		signal = options.signal
 	} catch (cause) {
 		throw new ContractError('Budget: options could not be read', {
@@ -72,13 +72,13 @@ export function validateBudgetOptions<T>(options: BudgetOptions<T>): BudgetOptio
 			},
 		})
 	}
-	if (!isFunction(consume)) {
-		throw new ContractError('Budget: consume must be a function', {
+	if (!isFunction(consumer)) {
+		throw new ContractError('Budget: consumer must be a function', {
 			code: 'placement',
 			context: {
-				path: ['options', 'consume'],
+				path: ['options', 'consumer'],
 				limit: 'function',
-				received: preview(consume),
+				received: preview(consumer),
 			},
 		})
 	}
@@ -93,10 +93,10 @@ export function validateBudgetOptions<T>(options: BudgetOptions<T>): BudgetOptio
 		})
 	}
 
-	if (id !== undefined && signal !== undefined) return { id, max, consume, signal }
-	if (id !== undefined) return { id, max, consume }
-	if (signal !== undefined) return { max, consume, signal }
-	return { max, consume }
+	if (id !== undefined && signal !== undefined) return { id, max, consumer, signal }
+	if (id !== undefined) return { id, max, consumer }
+	if (signal !== undefined) return { max, consumer, signal }
+	return { max, consumer }
 }
 
 /**

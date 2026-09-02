@@ -22,7 +22,7 @@ import { isBudgetAmount } from './validators.js'
  * ```ts
  * import { Budget } from '@orkestrel/budget'
  *
- * const budget = new Budget<number>({ max: 1_000, consume: (value) => value })
+ * const budget = new Budget<number>({ max: 1_000, consumer: (value) => value })
  * budget.consume(400)
  * budget.consume(700)
  * ```
@@ -30,7 +30,7 @@ import { isBudgetAmount } from './validators.js'
 export class Budget<T> implements BudgetInterface<T> {
 	readonly id: string
 	readonly #max: number
-	readonly #consumer: BudgetOptions<T>['consume']
+	readonly #consumer: BudgetOptions<T>['consumer']
 	readonly #parent: AbortSignal | undefined
 	#consumed = 0
 	#controller: AbortController
@@ -40,7 +40,7 @@ export class Budget<T> implements BudgetInterface<T> {
 		const input = validateBudgetOptions(options)
 		this.id = input.id === undefined ? crypto.randomUUID() : input.id
 		this.#max = input.max
-		this.#consumer = input.consume
+		this.#consumer = input.consumer
 		this.#parent = input.signal
 		this.#controller = new AbortController()
 		this.#signal = this.#compose()
