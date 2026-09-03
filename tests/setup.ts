@@ -83,15 +83,15 @@ export function createReadingProxy<T extends object>(
 }
 
 /**
- * Defines a property on a target whose every read throws.
+ * Defines, in place on the target it receives, a property whose every read throws.
  *
  * @remarks
  * The installed descriptor is the native `AbortSignal.prototype.aborted` getter, which
  * throws a real `TypeError` when read through a receiver that is not an `AbortSignal`.
  *
- * @param target - Object that receives the throwing property
+ * @param target - Object that receives the throwing property; the call mutates it
  * @param key - Property name that throws on read
- * @returns The same target, with the throwing property installed
+ * @returns The same target object, mutated in place with the throwing property installed
  * @throws {Error} When the native `aborted` descriptor is absent
  *
  * @example

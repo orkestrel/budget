@@ -1,5 +1,5 @@
 // The consumer-side guides-parity drop-in: runs `@orkestrel/guide`'s checks against
-// this repo's own `guides/README.md` manifest. The four constants below are this
+// this repo's own `guides/README.md` manifest. The constants that follow are this
 // package's own, and are the only part a sibling package changes.
 
 import { describe, expect, it } from 'vitest'
@@ -34,8 +34,8 @@ const MODULES = Object.freeze({ '@orkestrel/budget': 'src/core', '@src/core': 's
  *
  * A class that one-class-per-file evicted from its single consumer cannot become a
  * local, so it stays exported without being public. Naming it here is what makes that
- * intentional rather than forgotten — and the second assertion below fails when a name
- * here stops being stranded, so the list cannot rot.
+ * intentional rather than forgotten — and the `INTERNAL.filter` assertion later in this file
+ * fails when a name here stops being stranded, so the list cannot rot.
  */
 const INTERNAL: readonly string[] = Object.freeze([])
 
@@ -208,8 +208,8 @@ describe('flagship fences', () => {
 
 	it('stops the stream loop after the cumulative bytes cross the ceiling', () => {
 		// Transcribed from the race-work-against-the-ceiling fence, driven over a local
-		// list of byte lengths in place of the fence's stream. The third chunk carries the
-		// tally past 1_000_000, so the fourth is the one the bound refuses.
+		// list of byte lengths in place of the fence's stream. Each chunk is 400_000 bytes; the
+		// tally crosses 1_000_000 at 1_200_000, and the bound refuses the chunk that would follow.
 		const budget = createBudget<number>({ max: 1_000_000, consumer: (bytes) => bytes })
 		const fired = createRecorder<readonly []>()
 		budget.start()

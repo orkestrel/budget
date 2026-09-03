@@ -22,12 +22,17 @@ A dual-axis index into this repository's guides — by concept, and by directory
 anything sourced in this repo; it is kept here so a reader of this package can see
 the primitives it is built from without leaving this guide set.
 
-[`guide.md`](guide.md) is a byte-identical mirror of the guide for
-`@orkestrel/guide` — the devDependency powering this repo's guides-parity test
-suite (`tests/guides.test.ts`). It documents **that package's**
-surface (`Guide` / `Source`, the manifest and comparison helpers), not anything
-sourced in this repo; it is kept here so a reader of the parity suite can see
-the primitives it is built from without leaving this guide set.
+The directory also holds one byte-identical mirror per declared `@orkestrel/*`
+development dependency:
+
+- [`guide.md`](guide.md) mirrors the guide for `@orkestrel/guide`, which powers
+  the guides-parity suite (`tests/guides.test.ts`).
+- [`test.md`](test.md) mirrors the guide for `@orkestrel/test`, which supplies
+  the shared test helpers every suite here imports.
+- [`scaffold.md`](scaffold.md) mirrors the guide for `@orkestrel/scaffold`,
+  which owns this workspace's structure and its vendored files.
+- [`probe.md`](probe.md) mirrors the guide for `@orkestrel/probe`, which runs a
+  claim's case and its negative control against this workspace.
 
 ## See also
 

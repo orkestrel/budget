@@ -3,9 +3,8 @@
  *
  * @remarks
  * `max` is a finite nonnegative ceiling. `consumer` extracts the finite
- * nonnegative charge from each domain value. Omitted `id` values generate a
- * random UUID, and an optional native parent `signal` participates in the
- * exposed composite signal.
+ * nonnegative charge from each domain value. An optional native parent `signal`
+ * participates in the exposed composite signal.
  *
  * @example
  * ```ts
