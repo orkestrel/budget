@@ -125,6 +125,13 @@ describe('Budget construction boundary', () => {
 		expect(generated.id.length > 0).toBe(true)
 		expect(generated.id).not.toBe(other.id)
 	})
+
+	it('refuses a runtime write to id and keeps the value', () => {
+		const budget = new Budget<number>({ id: 'first', max: 10, consumer: selectCharge })
+
+		expect(Reflect.set(budget, 'id', 'other')).toBe(false)
+		expect(budget.id).toBe('first')
+	})
 })
 
 describe('Budget consumption', () => {
