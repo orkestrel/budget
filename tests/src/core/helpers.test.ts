@@ -2,24 +2,12 @@ import type { BudgetOptions, TokenBudgetOptions } from '@src/core'
 import { validateBudgetOptions, validateTokenBudgetOptions } from '@src/core'
 import { preview } from '@orkestrel/contract'
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import { captureContractError, selectCharge } from '../../setup.js'
-
-let budgetReads: PropertyKey[] = []
-let tokenReads: PropertyKey[] = []
-
-const budgetHandler: ProxyHandler<BudgetOptions<number>> = {
-	get(target, property, receiver) {
-		budgetReads.push(property)
-		return Reflect.get(target, property, receiver)
-	},
-}
-
-const tokenHandler: ProxyHandler<TokenBudgetOptions> = {
-	get(target, property, receiver) {
-		tokenReads.push(property)
-		return Reflect.get(target, property, receiver)
-	},
-}
+import {
+	captureContractError,
+	createReadingProxy,
+	defineThrowingProperty,
+	selectCharge,
+} from '../../setup.js'
 
 describe('validateBudgetOptions', () => {
 	it('returns a fresh copy and omits absent optional keys', () => {
@@ -49,23 +37,21 @@ describe('validateBudgetOptions', () => {
 	})
 
 	it('reads each declared property exactly once', () => {
-		budgetReads = []
-		const input = new Proxy<BudgetOptions<number>>(
-			{ id: 'meter', max: 10, consumer: selectCharge, signal: new AbortController().signal },
-			budgetHandler,
-		)
+		const { proxy, reads } = createReadingProxy<BudgetOptions<number>>({
+			id: 'meter',
+			max: 10,
+			consumer: selectCharge,
+			signal: new AbortController().signal,
+		})
 
-		const output = validateBudgetOptions(input)
+		const output = validateBudgetOptions(proxy)
 
 		expect(output.id).toBe('meter')
-		expect(budgetReads).toEqual(['id', 'max', 'consumer', 'signal'])
+		expect(reads).toEqual(['id', 'max', 'consumer', 'signal'])
 	})
 
 	it('contains a hostile getter and preserves its cause', () => {
-		const descriptor = Object.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted')
-		if (descriptor === undefined) throw new Error('Expected the native aborted descriptor')
-		const input = { consumer: selectCharge }
-		Object.defineProperty(input, 'max', descriptor)
+		const input = defineThrowingProperty({ consumer: selectCharge }, 'max')
 		const error = captureContractError(() =>
 			Reflect.apply(validateBudgetOptions, undefined, [input]),
 		)
@@ -144,23 +130,21 @@ describe('validateTokenBudgetOptions', () => {
 	})
 
 	it('reads each declared property exactly once', () => {
-		tokenReads = []
-		const input = new Proxy<TokenBudgetOptions>(
-			{ id: 'tokens', max: 10, scope: 'prompt', signal: new AbortController().signal },
-			tokenHandler,
-		)
+		const { proxy, reads } = createReadingProxy<TokenBudgetOptions>({
+			id: 'tokens',
+			max: 10,
+			scope: 'prompt',
+			signal: new AbortController().signal,
+		})
 
-		const output = validateTokenBudgetOptions(input)
+		const output = validateTokenBudgetOptions(proxy)
 
 		expect(output.scope).toBe('prompt')
-		expect(tokenReads).toEqual(['id', 'max', 'scope', 'signal'])
+		expect(reads).toEqual(['id', 'max', 'scope', 'signal'])
 	})
 
 	it('contains a hostile getter and preserves its cause', () => {
-		const descriptor = Object.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted')
-		if (descriptor === undefined) throw new Error('Expected the native aborted descriptor')
-		const input = {}
-		Object.defineProperty(input, 'scope', descriptor)
+		const input = defineThrowingProperty({}, 'scope')
 		const error = captureContractError(() =>
 			Reflect.apply(validateTokenBudgetOptions, undefined, [input]),
 		)

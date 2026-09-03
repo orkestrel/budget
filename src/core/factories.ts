@@ -99,7 +99,7 @@ export function createTokenConsumer(scope: TokenScope): BudgetOptions<TokenUsage
  * Creates a token budget charging one validated usage field per provider call.
  *
  * @remarks
- * `scope` defaults to `completion`. Construction validates its own untyped
+ * `scope` — Default: `completion`. Construction validates its own untyped
  * boundary before composing the generic budget.
  *
  * @param options - Strict token-budget construction options

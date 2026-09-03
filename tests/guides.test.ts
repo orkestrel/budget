@@ -18,8 +18,10 @@ import {
 	resolveLink,
 } from '@orkestrel/guide'
 import { readFileSync } from 'node:fs'
-import { requireValue } from '@orkestrel/test'
+import { createRecorder, requireValue } from '@orkestrel/test'
 import { readInventory } from '@orkestrel/test/server'
+import { createBudget, createTokenBudget } from '@src/core'
+import { createTokenUsage } from './setup.js'
 
 /** Every fence language this package's guides are allowed to use. */
 const FENCE_LANGUAGES = Object.freeze(['ts'])
@@ -168,3 +170,142 @@ for (const entry of manifest) {
 		})
 	})
 }
+
+// The EXECUTED half. Every preceding check reads a name — from source text or from a
+// prototype — and a name that resolves proves nothing about a sentence beside it, so a
+// fence whose comment claims a value the code contradicts passes all of them. The cases
+// here run the flagship fences of `guides/budget.md` and assert the values their comments
+// claim. Change a fence, change the transcription beside it.
+describe('flagship fences', () => {
+	const guideText = requireValue(files['guides/budget.md'], 'Missing file: guides/budget.md')
+
+	it('charges the Surface fence and fires the signal exactly once at the ceiling', () => {
+		// Transcribed from the Surface fence. The listener stands in for the fence's
+		// `stop()` so the "fires when exhausted" comment is a counted call, not a name.
+		const budget = createBudget<number>({ max: 10_000, consumer: (cost) => cost })
+		const fired = createRecorder<readonly []>()
+		budget.start()
+		budget.signal.addEventListener('abort', fired.handler)
+
+		budget.consume(4_000)
+		expect(budget.remaining).toBe(6_000)
+		expect(fired.count).toBe(0)
+
+		budget.consume(7_000)
+		expect(budget.signal.aborted).toBe(true)
+		expect(fired.count).toBe(1)
+	})
+
+	it('carries the Surface fence lines the transcription copies', () => {
+		// The presence guard beside the transcription: it proves the transcribed lines are
+		// still the documented ones, and nothing whatever about behavior.
+		expect(guideText).toContain(
+			'const budget = createBudget<number>({ max: 10_000, consumer: (cost) => cost })',
+		)
+		expect(guideText).toContain('budget.consume(4_000) // remaining 6_000')
+		expect(guideText).toContain('budget.consume(7_000) // crosses 10_000 — fires `signal`')
+	})
+
+	it('stops the stream loop after the cumulative bytes cross the ceiling', () => {
+		// Transcribed from the race-work-against-the-ceiling fence, driven over a local
+		// list of byte lengths in place of the fence's stream. The third chunk carries the
+		// tally past 1_000_000, so the fourth is the one the bound refuses.
+		const budget = createBudget<number>({ max: 1_000_000, consumer: (bytes) => bytes })
+		const fired = createRecorder<readonly []>()
+		budget.start()
+		budget.signal.addEventListener('abort', fired.handler, { once: true })
+		const chunks: readonly number[] = [400_000, 400_000, 400_000, 400_000]
+		const processed: number[] = []
+
+		for (const byteLength of chunks) {
+			if (budget.signal.aborted) break
+			budget.consume(byteLength)
+			processed.push(byteLength)
+		}
+
+		expect(processed).toEqual([400_000, 400_000, 400_000])
+		expect(budget.consumed).toBe(1_200_000)
+		expect(fired.count).toBe(1)
+	})
+
+	it('carries the stream fence lines the transcription copies', () => {
+		expect(guideText).toContain(
+			'const budget = createBudget<number>({ max: 1_000_000, consumer: (bytes) => bytes })',
+		)
+		expect(guideText).toContain(
+			'if (budget.signal.aborted) break // the ceiling was crossed mid-stream',
+		)
+		expect(guideText).toContain('budget.consume(chunk.byteLength)')
+	})
+
+	it('trips the agent loop bound on the token budget alone', () => {
+		// Transcribed from the agent-loop fence. The deadline is a short host timer that is
+		// never awaited, so the case carries no minute-long timer and every read here is
+		// synchronous: only the budget can have tripped the bound by the last assertion.
+		const cancel = new AbortController()
+		const deadline = AbortSignal.timeout(50)
+		const budget = createTokenBudget({ max: 50_000, scope: 'total' })
+		budget.start()
+		const bound = AbortSignal.any([cancel.signal, deadline, budget.signal])
+		const responses = [
+			createTokenUsage(10_000, 10_000, 20_000),
+			createTokenUsage(10_000, 10_000, 20_000),
+			createTokenUsage(10_000, 10_000, 20_000),
+			createTokenUsage(10_000, 10_000, 20_000),
+		]
+		const charged: number[] = []
+
+		for (const usage of responses) {
+			if (bound.aborted) break
+			budget.consume(usage)
+			charged.push(usage.total)
+		}
+
+		expect(charged).toEqual([20_000, 20_000, 20_000])
+		expect(bound.aborted).toBe(true)
+		expect(budget.signal.aborted).toBe(true)
+		expect(cancel.signal.aborted).toBe(false)
+		expect(deadline.aborted).toBe(false)
+	})
+
+	it('carries the agent loop fence lines the transcription copies', () => {
+		expect(guideText).toContain(
+			"const budget = createTokenBudget({ max: 50_000, scope: 'total' }) // cost ceiling",
+		)
+		expect(guideText).toContain(
+			'const bound = AbortSignal.any([cancel.signal, deadline, budget.signal])',
+		)
+		expect(guideText).toContain(
+			'budget.consume(usage) // fires budget.signal after the ceiling is crossed',
+		)
+	})
+
+	it('reopens a spent budget from zero with clear', () => {
+		// Transcribed from the reuse-a-handle fence: each comment on the fence is an
+		// assertion here.
+		const budget = createBudget<number>({ max: 1_000, consumer: (n) => n })
+		budget.start()
+
+		budget.consume(1_000)
+		expect(budget.exhausted).toBe(true)
+		expect(budget.signal.aborted).toBe(true)
+
+		budget.clear()
+		expect(budget.consumed).toBe(0)
+		expect(budget.remaining).toBe(1_000)
+		expect(budget.signal.aborted).toBe(false)
+
+		budget.consume(200)
+		expect(budget.consumed).toBe(200)
+	})
+
+	it('carries the clear fence lines the transcription copies', () => {
+		expect(guideText).toContain(
+			'budget.consume(1_000) // crosses the ceiling — signal fires, exhausted is true',
+		)
+		expect(guideText).toContain(
+			'budget.clear() // consumed resets to 0, remaining is max again, signal is fresh',
+		)
+		expect(guideText).toContain('budget.consume(200) // spends against the new window')
+	})
+})

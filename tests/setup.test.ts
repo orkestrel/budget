@@ -5,7 +5,13 @@
 
 import { describe, expect, it } from 'vitest'
 import { ContractError } from '@orkestrel/contract'
-import { captureContractError, isBrowserVuePath, selectCharge } from './setup.js'
+import {
+	captureContractError,
+	createReadingProxy,
+	createTokenUsage,
+	defineThrowingProperty,
+	selectCharge,
+} from './setup.js'
 
 describe('captureContractError', () => {
 	it('returns the thrown contract error itself, narrowed', () => {
@@ -71,27 +77,38 @@ describe('selectCharge', () => {
 	})
 })
 
-describe('isBrowserVuePath', () => {
-	// A lexical classifier over repository-relative paths. It normalizes the separator
-	// itself rather than reading the host's, so both families are asserted on every host.
-	it('accepts a browser SFC path in each separator family', () => {
-		expect(isBrowserVuePath('app/browser/components/BudgetPanel.vue')).toBe(true)
-		expect(isBrowserVuePath('app\\browser\\components\\BudgetPanel.vue')).toBe(true)
-		expect(isBrowserVuePath('app/browser\\components/BudgetPanel.vue')).toBe(true)
-		expect(isBrowserVuePath('app/browser/App.vue')).toBe(true)
+describe('createTokenUsage', () => {
+	it('returns exactly the three named counts', () => {
+		// The positional order is the one every call site depends on: a swapped `prompt`
+		// and `completion` would still type-check, so the record is compared field by field.
+		expect(createTokenUsage(100, 15, 115)).toStrictEqual({
+			prompt: 100,
+			completion: 15,
+			total: 115,
+		})
 	})
+})
 
-	it('refuses a sibling environment and a prefix lookalike', () => {
-		// Siblings: the same repository, a different environment.
-		expect(isBrowserVuePath('app/server/components/BudgetPanel.vue')).toBe(false)
-		expect(isBrowserVuePath('app/core/components/BudgetPanel.vue')).toBe(false)
-		expect(isBrowserVuePath('src/browser/components/BudgetPanel.vue')).toBe(false)
-		// Prefix lookalikes: the boundary is the `app/browser/` segment pair, so a longer
-		// second segment, the bare directory, and an unrooted occurrence all sit outside it.
-		expect(isBrowserVuePath('app/browser-tools/BudgetPanel.vue')).toBe(false)
-		expect(isBrowserVuePath('app/browsers/BudgetPanel.vue')).toBe(false)
-		expect(isBrowserVuePath('app/browser')).toBe(false)
-		expect(isBrowserVuePath('tests/app/browser/BudgetPanel.vue')).toBe(false)
-		expect(isBrowserVuePath('app\\browser-tools\\BudgetPanel.vue')).toBe(false)
+describe('createReadingProxy', () => {
+	it('records every property read in read order and returns the target values', () => {
+		const { proxy, reads } = createReadingProxy({ max: 10, scope: 'total' })
+
+		expect(reads).toEqual([])
+		expect(proxy.scope).toBe('total')
+		expect(proxy.max).toBe(10)
+		// The log is the same live array the proxy appends to, so a read that happens after
+		// the helper returned is still visible here.
+		expect(reads).toEqual(['scope', 'max'])
+	})
+})
+
+describe('defineThrowingProperty', () => {
+	it('installs a key that throws a TypeError on read and leaves a sibling readable', () => {
+		const input = { completion: 1 }
+		const target = defineThrowingProperty(input, 'prompt')
+
+		expect(target).toBe(input)
+		expect(() => Reflect.get(target, 'prompt')).toThrow(TypeError)
+		expect(target.completion).toBe(1)
 	})
 })

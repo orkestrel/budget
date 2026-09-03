@@ -13,7 +13,7 @@
  * ```
  */
 export interface BudgetOptions<T> {
-	/** Holds the trace label for the budget; omission generates a random UUID. */
+	/** Holds the trace label for the budget. Default: a random UUID. */
 	readonly id?: string
 	/** Holds the finite nonnegative cumulative ceiling. */
 	readonly max: number
@@ -83,7 +83,7 @@ export type TokenScope = 'completion' | 'total' | 'prompt'
  * Represents the options for constructing a token budget.
  *
  * @remarks
- * `scope` defaults to `completion`. All other fields have the same strict
+ * `scope` — Default: `completion`. All other fields have the same strict
  * runtime meaning as their `BudgetOptions` counterparts.
  *
  * @example
@@ -92,11 +92,11 @@ export type TokenScope = 'completion' | 'total' | 'prompt'
  * ```
  */
 export interface TokenBudgetOptions {
-	/** Holds the trace label for the budget; omission generates a random UUID. */
+	/** Holds the trace label for the budget. Default: a random UUID. */
 	readonly id?: string
 	/** Holds the finite nonnegative token ceiling. */
 	readonly max: number
-	/** Names the token usage field charged per provider response. */
+	/** Names the token usage field charged per provider response. Default: `completion`. */
 	readonly scope?: TokenScope
 	/** Holds the native parent signal composed with the budget's owned exhaustion signal. */
 	readonly signal?: AbortSignal

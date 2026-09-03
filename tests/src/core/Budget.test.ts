@@ -3,7 +3,7 @@ import { Budget } from '@src/core'
 import { ContractError, preview } from '@orkestrel/contract'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { captureError, createRecorder } from '@orkestrel/test'
-import { captureContractError, selectCharge } from '../../setup.js'
+import { captureContractError, defineThrowingProperty, selectCharge } from '../../setup.js'
 
 describe('Budget construction boundary', () => {
 	it.each([
@@ -22,10 +22,7 @@ describe('Budget construction boundary', () => {
 	})
 
 	it('contains unreadable options and preserves the cause', () => {
-		const descriptor = Object.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted')
-		if (descriptor === undefined) throw new Error('Expected the native aborted descriptor')
-		const options = { consumer: selectCharge }
-		Object.defineProperty(options, 'max', descriptor)
+		const options = defineThrowingProperty({ consumer: selectCharge }, 'max')
 		const error = captureContractError(() => Reflect.construct(Budget, [options]))
 
 		expect(error.code).toBe('bound')

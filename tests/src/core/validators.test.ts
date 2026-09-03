@@ -1,6 +1,7 @@
 import type { TokenScope, TokenUsage } from '@src/core'
 import { isBudgetAmount, isBudgetSignal, isTokenScope, isTokenUsage } from '@src/core'
 import { describe, expect, expectTypeOf, it } from 'vitest'
+import { defineThrowingProperty } from '../../setup.js'
 
 describe('isBudgetAmount', () => {
 	it.each([0, -0, 0.25, 1, Number.MAX_VALUE])('accepts finite nonnegative %s', (value) => {
@@ -93,10 +94,7 @@ describe('isTokenUsage', () => {
 	})
 
 	it('contains hostile getters', () => {
-		const descriptor = Object.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted')
-		if (descriptor === undefined) throw new Error('Expected the native aborted descriptor')
-		const value = { completion: 1, total: 1 }
-		Object.defineProperty(value, 'prompt', descriptor)
+		const value = defineThrowingProperty({ completion: 1, total: 1 }, 'prompt')
 
 		expect(isTokenUsage(value)).toBe(false)
 	})

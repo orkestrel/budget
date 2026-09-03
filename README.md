@@ -6,7 +6,7 @@ Charge a `Budget<T>` as work spends — `consume(value)` adds to a running
 `consumed` total — and race its `signal` against that work to cap how much it
 may burn (tokens, bytes, calls). A convenience `createTokenBudget` factory
 wraps the canonical LLM cost unit (`TokenUsage`) so callers don't have to
-write their own extractor. Deliberately small: a pure, functional counter
+write their own consumer. Deliberately small: a pure, functional counter
 with a signal bolted to its ceiling, no Emitter, no clock, no I/O of its own.
 Part of the `@orkestrel` line.
 
@@ -18,8 +18,8 @@ npm install @orkestrel/budget
 
 ## Requirements
 
-- Node.js >= 24
-- ESM-only (no CommonJS build)
+- Node.js >= 22.12.0, matching the `engines` field in `package.json`
+- ESM (`import`) and CommonJS (`require`) through the `exports` field
 
 ## Usage
 
@@ -39,15 +39,15 @@ tokens.consume({ prompt: 100, completion: 400, total: 500 })
 ```
 
 `createBudget(options)` (or `new Budget(options)`) returns a
-`BudgetInterface<T>`. `consume(value)` runs your extractor and adds the
+`BudgetInterface<T>`. `consume(value)` runs your consumer and adds the
 validated finite nonnegative result to `consumed`; the moment cumulative `consumed` reaches `max`,
 `exhausted` flips `true` and `signal` fires — exactly once. `start()`
 re-arms a fresh per-request `signal` without resetting `consumed`, so the
 ceiling stays one running total across many requests; `clear()` zeroes the
 tally AND re-arms a fresh signal. Pass a parent `signal` to link an external
 cancel — the exposed `signal` then fires on EITHER exhaustion OR the parent
-aborting (via `AbortSignal.any`). Construction and token usage are strictly
-validated with structured `ContractError`s. A thrown extractor, invalid charge,
+aborting (through `AbortSignal.any`). Construction and token usage are strictly
+validated with structured `ContractError`s. A thrown consumer, invalid charge,
 or nonfinite cumulative overflow leaves the tally and signal unchanged.
 
 ## Guide

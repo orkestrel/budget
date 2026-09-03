@@ -9,11 +9,12 @@ import { createBudget, createTokenBudget, createTokenConsumer } from '@src/core'
 import { preview } from '@orkestrel/contract'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createRecorder } from '@orkestrel/test'
-import { captureContractError, selectCharge } from '../../setup.js'
-
-function usage(prompt: number, completion: number, total: number): TokenUsage {
-	return { prompt, completion, total }
-}
+import {
+	captureContractError,
+	createTokenUsage,
+	defineThrowingProperty,
+	selectCharge,
+} from '../../setup.js'
 
 describe('createBudget', () => {
 	it('returns a working BudgetInterface', () => {
@@ -63,7 +64,7 @@ describe('createBudget', () => {
 
 describe('createTokenConsumer', () => {
 	it('selects each supported token usage field', () => {
-		const value = usage(100, 15, 115)
+		const value = createTokenUsage(100, 15, 115)
 
 		expect(createTokenConsumer('completion')(value)).toBe(15)
 		expect(createTokenConsumer('total')(value)).toBe(115)
@@ -103,10 +104,7 @@ describe('createTokenConsumer', () => {
 	})
 
 	it('contains a hostile token getter as invalid usage', () => {
-		const descriptor = Object.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted')
-		if (descriptor === undefined) throw new Error('Expected the native aborted descriptor')
-		const value = { completion: 1, total: 1 }
-		Object.defineProperty(value, 'prompt', descriptor)
+		const value = defineThrowingProperty({ completion: 1, total: 1 }, 'prompt')
 		const consumer = createTokenConsumer('prompt')
 		const error = captureContractError(() => Reflect.apply(consumer, undefined, [value]))
 
@@ -119,7 +117,7 @@ describe('createTokenConsumer', () => {
 	})
 
 	it('contains revoked usage proxies', () => {
-		const revoked = Proxy.revocable(usage(1, 2, 3), {})
+		const revoked = Proxy.revocable(createTokenUsage(1, 2, 3), {})
 		revoked.revoke()
 		const consumer = createTokenConsumer('total')
 		const error = captureContractError(() => Reflect.apply(consumer, undefined, [revoked.proxy]))
@@ -150,10 +148,7 @@ describe('createTokenBudget construction boundary', () => {
 	})
 
 	it('contains unreadable options and preserves the cause', () => {
-		const descriptor = Object.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted')
-		if (descriptor === undefined) throw new Error('Expected the native aborted descriptor')
-		const options = {}
-		Object.defineProperty(options, 'max', descriptor)
+		const options = defineThrowingProperty({}, 'max')
 		const error = captureContractError(() => Reflect.apply(createTokenBudget, undefined, [options]))
 
 		expect(error.code).toBe('bound')
@@ -216,8 +211,8 @@ describe('createTokenBudget', () => {
 	it('charges completion by default and permits a valid overshoot', () => {
 		const budget = createTokenBudget({ max: 20 })
 
-		budget.consume(usage(100, 15, 115))
-		budget.consume(usage(50, 10, 60))
+		budget.consume(createTokenUsage(100, 15, 115))
+		budget.consume(createTokenUsage(50, 10, 60))
 
 		expect(budget.consumed).toBe(25)
 		expect(budget.remaining).toBe(0)
@@ -233,7 +228,7 @@ describe('createTokenBudget', () => {
 		(scope, expected) => {
 			const budget = createTokenBudget({ max: 1_000, scope })
 
-			budget.consume(usage(100, 15, 115))
+			budget.consume(createTokenUsage(100, 15, 115))
 
 			expect(budget.consumed).toBe(expected)
 		},
@@ -248,7 +243,7 @@ describe('createTokenBudget', () => {
 			signal: parent.signal,
 		})
 
-		budget.consume(usage(20, 20, 40))
+		budget.consume(createTokenUsage(20, 20, 40))
 		const initial = budget.signal
 		budget.start()
 		expect(budget.id).toBe('tokens-3')

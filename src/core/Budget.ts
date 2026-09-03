@@ -28,7 +28,7 @@ import { isBudgetAmount } from './validators.js'
  * ```
  */
 export class Budget<T> implements BudgetInterface<T> {
-	readonly id: string
+	readonly #id: string
 	readonly #max: number
 	readonly #consumer: BudgetOptions<T>['consumer']
 	readonly #parent: AbortSignal | undefined
@@ -38,12 +38,16 @@ export class Budget<T> implements BudgetInterface<T> {
 
 	constructor(options: BudgetOptions<T>) {
 		const input = validateBudgetOptions(options)
-		this.id = input.id === undefined ? crypto.randomUUID() : input.id
+		this.#id = input.id === undefined ? crypto.randomUUID() : input.id
 		this.#max = input.max
 		this.#consumer = input.consumer
 		this.#parent = input.signal
 		this.#controller = new AbortController()
 		this.#signal = this.#compose()
+	}
+
+	get id(): string {
+		return this.#id
 	}
 
 	get signal(): AbortSignal {
