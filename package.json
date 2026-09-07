@@ -1,6 +1,6 @@
 {
 	"name": "@orkestrel/budget",
-	"version": "0.0.9",
+	"version": "0.0.10",
 	"description": "A typed spending budget — a cumulative tally with an AbortSignal ceiling, start/consume/clear lifecycle, and a token-budget factory. Part of the @orkestrel line.",
 	"keywords": [
 		"abort-signal",
@@ -68,7 +68,8 @@
 		"test:probe": "vitest run --config vite.config.ts --no-cache --reporter=verbose --project probe",
 		"test:bench": "vitest bench --config vite.config.ts --no-cache --project probe",
 		"prepack": "npm run build",
-		"test:setup": "vitest run --config vite.config.ts --no-cache --reporter=dot --project setup"
+		"test:setup": "vitest run --config vite.config.ts --no-cache --reporter=dot --project setup",
+		"docs": "node --experimental-strip-types scripts/docs.ts"
 	},
 	"dependencies": {
 		"@orkestrel/contract": "^0.0.16"

@@ -4,7 +4,7 @@ import { isContractError } from '@orkestrel/contract'
 import { captureError } from '@orkestrel/test'
 
 /**
- * Capture and narrow a contract error thrown by an operation.
+ * Captures and narrows a contract error thrown by an operation.
  *
  * @param operation - Operation expected to throw a contract error
  * @returns The narrowed contract error
@@ -22,7 +22,7 @@ export function captureContractError(operation: () => unknown): ContractError {
 }
 
 /**
- * Select a numeric value itself as a budget charge.
+ * Selects a numeric value itself as a budget charge.
  *
  * @param value - Numeric value to select
  * @returns The unchanged value
