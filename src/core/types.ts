@@ -1,5 +1,6 @@
 /**
- * Represents the options for constructing a cumulative budget.
+ * Represents the options for constructing a cumulative budget, accepted by the
+ * `createBudget` function and the `Budget` constructor.
  *
  * @remarks
  * `max` is a finite nonnegative ceiling. `consumer` extracts the finite
@@ -23,7 +24,8 @@ export interface BudgetOptions<T> {
 }
 
 /**
- * Represents a cumulative cost handle whose native signal aborts at its ceiling.
+ * Represents the cumulative cost handle contract: a lifetime tally, its validated
+ * ceiling, and the native signal that aborts when the tally reaches that ceiling.
  *
  * @example
  * ```ts
@@ -48,20 +50,24 @@ export interface BudgetInterface<T> {
 	/** Indicates whether the cumulative tally has reached or exceeded `max`. */
 	readonly exhausted: boolean
 	/**
-	 * Re-arms a fresh signal without resetting the cumulative tally.
+	 * Re-arms a fresh per-request `signal` without resetting the cumulative tally,
+	 * arming it already aborted when `consumed` has reached `max`.
 	 *
 	 * @returns Nothing
 	 */
 	start(): void
 	/**
-	 * Validates and atomically adds the charge extracted from a domain value.
+	 * Runs the configured consumer first, then validates and atomically adds its
+	 * charge, tripping `signal` the moment the tally reaches `max`; a valid charge
+	 * that overshoots the ceiling is accepted.
 	 *
 	 * @param value - Domain value passed to the configured consumer
 	 * @returns Nothing
 	 */
 	consume(value: T): void
 	/**
-	 * Resets the tally and re-arms a fresh signal.
+	 * Resets the tally to `0` and re-arms a fresh unaborted `signal`, opening the
+	 * next window from zero.
 	 *
 	 * @returns Nothing
 	 */
@@ -79,7 +85,8 @@ export interface BudgetInterface<T> {
 export type TokenScope = 'completion' | 'total' | 'prompt'
 
 /**
- * Represents the options for constructing a token budget.
+ * Represents the options for constructing a token budget, accepted by the
+ * `createTokenBudget` function.
  *
  * @remarks
  * `scope` — Default: `completion`. All other fields have the same strict
@@ -102,7 +109,8 @@ export interface TokenBudgetOptions {
 }
 
 /**
- * Represents the canonical finite nonnegative token counts reported for one provider call.
+ * Represents the canonical LLM cost unit: the finite nonnegative token counts
+ * reported for one provider call, and the typical `T` for an agent budget.
  *
  * @example
  * ```ts

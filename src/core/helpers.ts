@@ -3,11 +3,11 @@ import { ContractError, isFunction, isRecord, isString, preview } from '@orkestr
 import { isBudgetAmount, isBudgetSignal, isTokenScope } from './validators.js'
 
 /**
- * Validates and normalizes budget construction options.
+ * Validates and normalizes budget construction options into a fresh copy that
+ * omits absent optional keys.
  *
  * @remarks
- * Each property is read exactly once before validation. The returned object is
- * a fresh copy and omits absent optional properties.
+ * Each property is read exactly once before validation.
  *
  * @param options - Potentially untrusted budget options
  * @returns A fresh validated `BudgetOptions` object
@@ -100,11 +100,11 @@ export function validateBudgetOptions<T>(options: BudgetOptions<T>): BudgetOptio
 }
 
 /**
- * Validates and normalizes token-budget construction options.
+ * Validates and normalizes token-budget construction options into a fresh copy
+ * that omits absent optional keys.
  *
  * @remarks
- * Each property is read exactly once before validation. The returned object is
- * a fresh copy and omits absent optional properties.
+ * Each property is read exactly once before validation.
  *
  * @param options - Potentially untrusted token-budget options
  * @returns A fresh validated `TokenBudgetOptions` object

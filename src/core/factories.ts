@@ -11,12 +11,32 @@ import { validateTokenBudgetOptions } from './helpers.js'
 import { isBudgetAmount, isTokenScope, isTokenUsage } from './validators.js'
 
 /**
- * Creates a cumulative budget whose native signal aborts at its ceiling.
+ * Creates a cumulative budget as a `BudgetInterface<T>` over a `max` ceiling and a
+ * `consumer`, whose native signal aborts the moment the tally reaches that ceiling.
+ *
+ * @remarks
+ * An optional trace `id` labels the handle, and an optional parent `signal` composes
+ * with the budget's own exhaustion signal.
  *
  * @param options - Strict budget construction options
  * @returns A reusable cumulative budget
  * @throws {@link import('@orkestrel/contract').ContractError} When the
  *   JavaScript input does not satisfy `BudgetOptions`
+ *
+ * @example Race work against the ceiling
+ * ```ts
+ * import { createBudget } from '@orkestrel/budget'
+ *
+ * const budget = createBudget<number>({ max: 1_000_000, consumer: (bytes) => bytes })
+ * budget.start()
+ * budget.signal.addEventListener('abort', () => abortStream(), { once: true })
+ *
+ * for await (const chunk of stream) {
+ * 	if (budget.signal.aborted) break // the ceiling was crossed mid-stream
+ * 	budget.consume(chunk.byteLength)
+ * 	process(chunk)
+ * }
+ * ```
  *
  * @example
  * ```ts
@@ -31,7 +51,7 @@ export function createBudget<T>(options: BudgetOptions<T>): BudgetInterface<T> {
 }
 
 /**
- * Creates a validated token consumer for one selected usage field.
+ * Creates a validated unary consumer that charges one selected `TokenUsage` field.
  *
  * @param scope - Token usage field to charge
  * @returns A consumer that validates usage and returns the selected charge
@@ -96,11 +116,13 @@ export function createTokenConsumer(scope: TokenScope): BudgetOptions<TokenUsage
 }
 
 /**
- * Creates a token budget charging one validated usage field per provider call.
+ * Creates a token budget as a `BudgetInterface<TokenUsage>` charging one validated
+ * `scope` field per provider call.
  *
  * @remarks
- * `scope` — Default: `completion`. Construction validates its own untyped
- * boundary before composing the generic budget.
+ * `scope` selects `completion`, `total`, or `prompt`. Default: `completion`.
+ * Construction validates its own untyped boundary before composing the generic
+ * budget.
  *
  * @param options - Strict token-budget construction options
  * @returns A reusable cumulative token budget

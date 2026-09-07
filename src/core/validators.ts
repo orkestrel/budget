@@ -2,7 +2,7 @@ import type { TokenScope, TokenUsage } from './types.js'
 import { isFiniteNumber, isRecord } from '@orkestrel/contract'
 
 /**
- * Determines whether a value is a valid budget amount.
+ * Determines whether a value is a finite nonnegative budget amount.
  *
  * @param value - Unknown amount candidate
  * @returns True if the value is a finite nonnegative number; false otherwise
@@ -18,7 +18,8 @@ export function isBudgetAmount(value: unknown): value is number {
 }
 
 /**
- * Determines whether a value is a genuine native `AbortSignal`.
+ * Determines whether a value is a genuine native `AbortSignal`, returning `false`
+ * rather than throwing on hostile input.
  *
  * @param value - Unknown signal candidate
  * @returns True if the intrinsic signal getter accepts the value; false otherwise
@@ -40,7 +41,7 @@ export function isBudgetSignal(value: unknown): value is AbortSignal {
 }
 
 /**
- * Determines whether a value selects a supported token usage field.
+ * Determines whether a value is a supported `TokenScope` field selector.
  *
  * @param value - Unknown scope candidate
  * @returns True if the value is `completion`, `total`, or `prompt`; false otherwise
@@ -56,10 +57,11 @@ export function isTokenScope(value: unknown): value is TokenScope {
 }
 
 /**
- * Determines whether a value is readable token usage with valid numeric fields.
+ * Determines whether a value is readable token usage carrying three finite
+ * nonnegative counts, returning `false` rather than throwing.
  *
  * @remarks
- * Hostile getters and revoked proxies are contained and return `false`.
+ * The read contains a hostile getter and a revoked proxy.
  *
  * @param value - Unknown usage candidate
  * @returns True if all three token counts are finite and nonnegative; false otherwise

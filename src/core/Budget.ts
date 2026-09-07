@@ -4,7 +4,8 @@ import { validateBudgetOptions } from './helpers.js'
 import { isBudgetAmount } from './validators.js'
 
 /**
- * Represents a cumulative cost handle whose native `AbortSignal` aborts at its ceiling.
+ * Implements `BudgetInterface` over a private `AbortController` the instance owns,
+ * aborting the composed signal the moment `consumed` reaches the `max` ceiling.
  *
  * @remarks
  * `consume(value)` invokes the configured consumer before changing state, then

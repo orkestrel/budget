@@ -1,14 +1,13 @@
 # @orkestrel/budget
 
-A typed spending budget — a cumulative consumption tally against a ceiling
-that exposes an `AbortSignal` firing the moment the budget is **exhausted**.
-Charge a `Budget<T>` as work spends — `consume(value)` adds to a running
-`consumed` total — and race its `signal` against that work to cap how much it
-may burn (tokens, bytes, calls). A convenience `createTokenBudget` factory
-wraps the canonical LLM cost unit (`TokenUsage`) so callers don't have to
-write their own consumer. Deliberately small: a pure, functional counter
-with a signal bolted to its ceiling, no Emitter, no clock, no I/O of its own.
-Part of the `@orkestrel` line.
+> The cost primitive: a cumulative consumption tally against a ceiling that exposes an
+> `AbortSignal` firing the moment `consumed` reaches `max`.
+
+Create a handle with the `createBudget` function, give it the `max` ceiling and the
+`consumer` that reads a charge out of your domain value, and call `consume(value)` at
+each step that spends. Use the `createTokenBudget` factory where the cost unit is LLM
+token usage: it wraps the canonical `TokenUsage` record so you write no consumer of
+your own. Part of the `@orkestrel` line.
 
 ## Install
 
