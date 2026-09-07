@@ -264,7 +264,7 @@ for (const entry of manifest) {
 // here run the flagship fences of `guides/budget.md` and assert the values their comments
 // claim. Change a fence, change the transcription beside it.
 describe('flagship fences', () => {
-	const guideText = requireValue(files['guides/budget.md'], 'Missing file: guides/budget.md')
+	const guideText = requireValue(files[GUIDE_SPEC], `Missing file: ${GUIDE_SPEC}`)
 
 	it('charges the Surface fence and fires the signal exactly once at the ceiling', () => {
 		// Transcribed from the Surface fence. The listener stands in for the fence's

@@ -3,7 +3,7 @@
 > The cost primitive: a cumulative consumption tally against a ceiling that exposes an
 > `AbortSignal` firing the moment `consumed` reaches `max`.
 
-The `consume` method runs the consumer you configured over each domain value and adds the validated charge to a running `consumed` total, so one ceiling bounds a lifetime of requests rather than a single call. Race the handle's `signal` against the work, or fold that signal into a loop's bound, to cap how much the work may burn — tokens, bytes, or calls.
+A budget handle is what an agent loop holds to keep a whole run inside one cost limit, in place of a cost check written at every call site. Hand its `signal` to the work, race that signal against a call, or fold it into a loop's bound. You define what is spent — tokens, bytes, dollars, or calls — so the same handle covers a provider's token usage and a pipeline's byte throughput.
 
 A budget is the substrate's third bounding signal, a peer to a cancellation signal (fires on `abort()`) and a deadline signal (fires on expiry). All three are plain `AbortSignal`s by design, so an agent loop combines them into one bound with `AbortSignal.any([abort, timeout, budget])` and reacts to whichever trips first — cancel, deadline, or cost. The primitive deliberately carries no Emitter, clock, or I/O: its native signal is the complete observation boundary. It is a functional counter with a signal bolted to its ceiling — nothing more, so the surface stays small. Source: [`src/core`](../src/core). Surfaced through the `@src/core` barrel.
 
@@ -57,15 +57,15 @@ budget.consume(7_000) // crosses 10_000 — fires `signal`
 
 ### Types
 
-A `Shape` cell holds an interface's members in braces, and a type alias's value.
+A `Shape` cell holds an interface's data members as bare names in braces, `?` marking an optional member and `plus` introducing its call-signature members, and a type alias's own type literal with a union's arms escaped as `\|`.
 
-| Type                 | Kind      | Shape                                                                                | Summary                                                                                                                                                         |
-| -------------------- | --------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BudgetOptions`      | interface | `{ id?: string; max: number; consumer: (value: T) => number; signal?: AbortSignal }` | Represents the options for constructing a cumulative budget, accepted by the `createBudget` function and the `Budget` constructor.                              |
-| `TokenBudgetOptions` | interface | `{ id?: string; max: number; scope?: TokenScope; signal?: AbortSignal }`             | Represents the options for constructing a token budget, accepted by the `createTokenBudget` function.                                                           |
-| `BudgetInterface`    | interface | `{ id, signal, max, consumed, remaining, exhausted, start, consume, clear }`         | Represents the cumulative cost handle contract: a lifetime tally, its validated ceiling, and the native signal that aborts when the tally reaches that ceiling. |
-| `TokenScope`         | type      | `'completion' \| 'total' \| 'prompt'`                                                | Names the token-usage field selected as the charge for a token budget.                                                                                          |
-| `TokenUsage`         | interface | `{ prompt: number; completion: number; total: number }`                              | Represents the canonical LLM cost unit: the finite nonnegative token counts reported for one provider call, and the typical `T` for an agent budget.            |
+| Type                 | Kind      | Shape                                                                            | Summary                                                                                                                                                         |
+| -------------------- | --------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BudgetOptions`      | interface | `{ id?, max, consumer, signal? }`                                                | Represents the options for constructing a cumulative budget, accepted by the `createBudget` function and the `Budget` constructor.                              |
+| `TokenBudgetOptions` | interface | `{ id?, max, scope?, signal? }`                                                  | Represents the options for constructing a token budget, accepted by the `createTokenBudget` function.                                                           |
+| `BudgetInterface`    | interface | `{ id, signal, max, consumed, remaining, exhausted } plus start, consume, clear` | Represents the cumulative cost handle contract: a lifetime tally, its validated ceiling, and the native signal that aborts when the tally reaches that ceiling. |
+| `TokenScope`         | type      | `'completion' \| 'total' \| 'prompt'`                                            | Names the token-usage field selected as the charge for a token budget.                                                                                          |
+| `TokenUsage`         | interface | `{ prompt, completion, total }`                                                  | Represents the canonical LLM cost unit: the finite nonnegative token counts reported for one provider call, and the typical `T` for an agent budget.            |
 
 The `id`, `signal`, `max`, `consumed`, `remaining`, and `exhausted` members of `BudgetInterface` are `readonly` data members (the preceding Surface rows) — its call-signature methods are documented under [Methods](#methods).
 
@@ -191,4 +191,4 @@ budget.consume(200) // spends against the new window
 ## See also
 
 - [`AGENTS.md`](../AGENTS.md) — the pointer to the `@orkestrel/scaffold` coding and orchestration authority.
-- [`../README.md`](README.md) — the guides index.
+- [`README.md`](README.md) — the guides index.
