@@ -35,12 +35,14 @@ budget.consume(7_000) // crosses 10_000 — fires `signal`
 
 ### Validators
 
-| API              | Kind     | Summary                                                                                                                              |
-| ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `isBudgetAmount` | function | Determines whether a value is a finite nonnegative budget amount.                                                                    |
-| `isBudgetSignal` | function | Determines whether a value is a genuine native `AbortSignal`, returning `false` rather than throwing on hostile input.               |
-| `isTokenScope`   | function | Determines whether a value is a supported `TokenScope` field selector.                                                               |
-| `isTokenUsage`   | function | Determines whether a value is readable token usage carrying three finite nonnegative counts, returning `false` rather than throwing. |
+In a guard table a `Shape` cell holds the type the guard narrows to.
+
+| API              | Kind     | Shape         | Summary                                                                                                                              |
+| ---------------- | -------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `isBudgetAmount` | function | `number`      | Determines whether a value is a finite nonnegative budget amount.                                                                    |
+| `isBudgetSignal` | function | `AbortSignal` | Determines whether a value is a genuine native `AbortSignal`, returning `false` rather than throwing on hostile input.               |
+| `isTokenScope`   | function | `TokenScope`  | Determines whether a value is a supported `TokenScope` field selector.                                                               |
+| `isTokenUsage`   | function | `TokenUsage`  | Determines whether a value is readable token usage carrying three finite nonnegative counts, returning `false` rather than throwing. |
 
 ### Helpers
 
