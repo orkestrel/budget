@@ -5,7 +5,7 @@ import type {
 	TokenScope,
 	TokenUsage,
 } from './types.js'
-import { ContractError, preview } from '@orkestrel/contract'
+import { ContractError, preview, readValue } from '@orkestrel/contract'
 import { Budget } from './Budget.js'
 import { validateTokenBudgetOptions } from './helpers.js'
 import { isBudgetAmount, isTokenScope, isTokenUsage } from './validators.js'
@@ -87,20 +87,15 @@ export function createTokenConsumer(scope: TokenScope): BudgetOptions<TokenUsage
 			})
 		}
 
-		let charge: unknown
-		try {
-			charge = Reflect.get(usage, scope)
-		} catch (cause) {
-			throw new ContractError('Token consumer: selected charge could not be read', {
-				code: 'placement',
-				context: {
-					path: ['usage', scope],
-					limit: 'readable finite nonnegative number',
-					received: preview(usage),
-				},
-				cause,
-			})
-		}
+		const charge = readValue(() => Reflect.get(usage, scope), 'Token consumer', {
+			subject: 'selected charge',
+			code: 'placement',
+			context: {
+				path: ['usage', scope],
+				limit: 'readable finite nonnegative number',
+				received: preview(usage),
+			},
+		})
 		if (!isBudgetAmount(charge)) {
 			throw new ContractError('Token consumer: selected charge must be valid', {
 				code: 'range',

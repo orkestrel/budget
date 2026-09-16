@@ -1,5 +1,12 @@
 import type { BudgetOptions, TokenBudgetOptions } from './types.js'
-import { ContractError, isFunction, isRecord, isString, preview } from '@orkestrel/contract'
+import {
+	ContractError,
+	isFunction,
+	isRecord,
+	isString,
+	preview,
+	readValue,
+} from '@orkestrel/contract'
 import { isBudgetAmount, isBudgetSignal, isTokenScope } from './validators.js'
 
 /**
@@ -31,26 +38,24 @@ export function validateBudgetOptions<T>(options: BudgetOptions<T>): BudgetOptio
 		})
 	}
 
-	let id: BudgetOptions<T>['id']
-	let max: BudgetOptions<T>['max']
-	let consumer: BudgetOptions<T>['consumer']
-	let signal: BudgetOptions<T>['signal']
-	try {
-		id = options.id
-		max = options.max
-		consumer = options.consumer
-		signal = options.signal
-	} catch (cause) {
-		throw new ContractError('Budget: options could not be read', {
+	const { id, max, consumer, signal } = readValue(
+		() => ({
+			id: options.id,
+			max: options.max,
+			consumer: options.consumer,
+			signal: options.signal,
+		}),
+		'Budget',
+		{
+			subject: 'options',
 			code: 'bound',
 			context: {
 				path: ['options'],
 				limit: 'readable plain record',
 				received: preview(options),
 			},
-			cause,
-		})
-	}
+		},
+	)
 
 	if (id !== undefined && !isString(id)) {
 		throw new ContractError('Budget: id must be a string when defined', {
@@ -128,26 +133,24 @@ export function validateTokenBudgetOptions(options: TokenBudgetOptions): TokenBu
 		})
 	}
 
-	let id: TokenBudgetOptions['id']
-	let max: TokenBudgetOptions['max']
-	let scope: TokenBudgetOptions['scope']
-	let signal: TokenBudgetOptions['signal']
-	try {
-		id = options.id
-		max = options.max
-		scope = options.scope
-		signal = options.signal
-	} catch (cause) {
-		throw new ContractError('TokenBudget: options could not be read', {
+	const { id, max, scope, signal } = readValue(
+		() => ({
+			id: options.id,
+			max: options.max,
+			scope: options.scope,
+			signal: options.signal,
+		}),
+		'TokenBudget',
+		{
+			subject: 'options',
 			code: 'bound',
 			context: {
 				path: ['options'],
 				limit: 'readable plain record',
 				received: preview(options),
 			},
-			cause,
-		})
-	}
+		},
+	)
 
 	if (id !== undefined && !isString(id)) {
 		throw new ContractError('TokenBudget: id must be a string when defined', {

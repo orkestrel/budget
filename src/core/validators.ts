@@ -1,5 +1,5 @@
 import type { TokenScope, TokenUsage } from './types.js'
-import { isFiniteNumber, isRecord } from '@orkestrel/contract'
+import { holds, isBoolean, isFiniteNumber, isFunction, isRecord } from '@orkestrel/contract'
 
 /**
  * Determines whether a value is a finite nonnegative budget amount.
@@ -31,13 +31,11 @@ export function isBudgetAmount(value: unknown): value is number {
  * ```
  */
 export function isBudgetSignal(value: unknown): value is AbortSignal {
-	try {
-		const descriptor = Object.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted')
-		if (descriptor?.get === undefined) return false
-		return typeof Reflect.apply(descriptor.get, value, []) === 'boolean'
-	} catch {
-		return false
-	}
+	return holds(() => {
+		const getter = Object.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted')?.get
+		if (!isFunction(getter)) return false
+		return isBoolean(Reflect.apply(getter, value, []))
+	})
 }
 
 /**
@@ -74,13 +72,10 @@ export function isTokenScope(value: unknown): value is TokenScope {
  */
 export function isTokenUsage(value: unknown): value is TokenUsage {
 	if (!isRecord(value)) return false
-	try {
-		return (
+	return holds(
+		() =>
 			isBudgetAmount(Reflect.get(value, 'prompt')) &&
 			isBudgetAmount(Reflect.get(value, 'completion')) &&
-			isBudgetAmount(Reflect.get(value, 'total'))
-		)
-	} catch {
-		return false
-	}
+			isBudgetAmount(Reflect.get(value, 'total')),
+	)
 }
