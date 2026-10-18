@@ -5,12 +5,18 @@
 
 import { describe, expect, it } from 'vitest'
 import { ContractError } from '@orkestrel/contract'
+import { BudgetError, isBudget } from '@src/core'
 import {
+	ReadingProxy,
 	captureContractError,
-	createReadingProxy,
+	createBudgetCandidate,
+	createRecordingBudget,
 	createTokenUsage,
 	defineThrowingProperty,
+	requireBudgetError,
 	selectCharge,
+	selectLength,
+	selectQuarterLength,
 } from './setup.js'
 
 describe('captureContractError', () => {
@@ -89,15 +95,15 @@ describe('createTokenUsage', () => {
 	})
 })
 
-describe('createReadingProxy', () => {
+describe('ReadingProxy', () => {
 	it('records every property read in read order and returns the target values', () => {
-		const { proxy, reads } = createReadingProxy({ max: 10, scope: 'total' })
+		const { proxy, reads } = new ReadingProxy({ max: 10, scope: 'total' })
 
 		expect(reads).toEqual([])
 		expect(proxy.scope).toBe('total')
 		expect(proxy.max).toBe(10)
 		// The log is the same live array the proxy appends to, so a read that happens after
-		// the helper returned is still visible here.
+		// the entity was destructured is still visible here.
 		expect(reads).toEqual(['scope', 'max'])
 	})
 })
@@ -110,5 +116,81 @@ describe('defineThrowingProperty', () => {
 		expect(target).toBe(input)
 		expect(() => Reflect.get(target, 'prompt')).toThrow(TypeError)
 		expect(target.completion).toBe(1)
+	})
+})
+
+describe('selectLength', () => {
+	it('returns the text length, counting the empty text as zero', () => {
+		expect(selectLength('')).toBe(0)
+		expect(selectLength('hello')).toBe(5)
+	})
+})
+
+describe('selectQuarterLength', () => {
+	it('rounds a quarter of the length up at and between the step boundaries', () => {
+		// Each expectation is a literal read off the 4-character step: the helper is not
+		// compared with its own formula.
+		expect(selectQuarterLength('')).toBe(0)
+		expect(selectQuarterLength('abcd')).toBe(1)
+		expect(selectQuarterLength('abcde')).toBe(2)
+		expect(selectQuarterLength('Once upon')).toBe(3)
+	})
+})
+
+describe('createRecordingBudget', () => {
+	it('records each consumed value in order and charges the selected amount', () => {
+		const { budget, charges } = createRecordingBudget<{ readonly weight: number }>(
+			10,
+			(value) => value.weight,
+		)
+
+		budget.consume({ weight: 3 })
+		budget.consume({ weight: 4 })
+
+		expect(charges.calls).toEqual([[{ weight: 3 }], [{ weight: 4 }]])
+		expect(budget.consumed).toBe(7)
+		expect(budget.max).toBe(10)
+	})
+
+	it('records a value whose selection throws and leaves the tally unchanged', () => {
+		const failure = new Error('refused')
+		const { budget, charges } = createRecordingBudget<number>(10, () => {
+			throw failure
+		})
+
+		expect(() => budget.consume(5)).toThrow(failure)
+		expect(charges.calls).toEqual([[5]])
+		expect(budget.consumed).toBe(0)
+	})
+})
+
+describe('requireBudgetError', () => {
+	it('returns a BudgetError itself, narrowed', () => {
+		const reason = new BudgetError({ id: 'tokens', max: 10, consumed: 12 })
+		const required = requireBudgetError(reason)
+
+		expect(required).toBe(reason)
+		// Reading `context` without a guard is the narrowing the consuming suites depend on.
+		expect(required.context.consumed).toBe(12)
+	})
+
+	it('refuses a reason that is not a BudgetError', () => {
+		expect(() => requireBudgetError(new DOMException('aborted', 'AbortError'))).toThrow(
+			'Expected a BudgetError',
+		)
+		expect(() => requireBudgetError(undefined)).toThrow('Expected a BudgetError')
+	})
+})
+
+describe('createBudgetCandidate', () => {
+	it('builds a candidate the guard accepts and applies each override', () => {
+		expect(isBudget(createBudgetCandidate())).toBe(true)
+		expect(createBudgetCandidate({ max: -1 }).max).toBe(-1)
+		expect(createBudgetCandidate({ id: undefined }).id).toBeUndefined()
+		expect(isBudget(createBudgetCandidate({ max: -1 }))).toBe(false)
+	})
+
+	it('returns a fresh signal for every candidate', () => {
+		expect(createBudgetCandidate().signal).not.toBe(createBudgetCandidate().signal)
 	})
 })

@@ -1,4 +1,4 @@
-import type { BudgetOptions, TokenBudgetOptions } from './types.js'
+import type { BudgetOptions, MeterOptions, TokenBudgetOptions, TokenMeterOptions } from './types.js'
 import {
 	ContractError,
 	isFunction,
@@ -7,7 +7,7 @@ import {
 	preview,
 	readValue,
 } from '@orkestrel/contract'
-import { isBudgetAmount, isBudgetSignal, isTokenScope } from './validators.js'
+import { isBudget, isBudgetAmount, isBudgetSignal, isTokenScope } from './validators.js'
 
 /**
  * Validates and normalizes budget construction options into a fresh copy that
@@ -203,4 +203,160 @@ export function validateTokenBudgetOptions(options: TokenBudgetOptions): TokenBu
 	if (scope !== undefined) return { max, scope }
 	if (signal !== undefined) return { max, signal }
 	return { max }
+}
+
+/**
+ * Validates and normalizes meter construction options into a fresh copy.
+ *
+ * @remarks
+ * Each property is read exactly once before validation.
+ *
+ * @param options - Potentially untrusted meter options
+ * @returns A fresh validated `MeterOptions` object
+ * @throws {@link import('@orkestrel/contract').ContractError} When the input
+ *   does not satisfy `MeterOptions`
+ *
+ * @example
+ * ```ts
+ * const options = validateMeterOptions({
+ * 	budget: createBudget<number>({ max: 100, consumer: (tokens) => tokens }),
+ * 	estimator: (text) => Math.ceil(text.length / 4),
+ * 	producer: (charge) => charge,
+ * })
+ * ```
+ */
+export function validateMeterOptions<T>(options: MeterOptions<T>): MeterOptions<T> {
+	if (!isRecord(options)) {
+		throw new ContractError('Meter: options must be a plain record', {
+			code: 'bound',
+			context: {
+				path: ['options'],
+				limit: 'plain record',
+				received: preview(options),
+			},
+		})
+	}
+
+	const { budget, estimator, producer } = readValue(
+		() => ({
+			budget: options.budget,
+			estimator: options.estimator,
+			producer: options.producer,
+		}),
+		'Meter',
+		{
+			subject: 'options',
+			code: 'bound',
+			context: {
+				path: ['options'],
+				limit: 'readable plain record',
+				received: preview(options),
+			},
+		},
+	)
+
+	if (!isBudget(budget)) {
+		throw new ContractError('Meter: budget must implement BudgetInterface', {
+			code: 'placement',
+			context: {
+				path: ['options', 'budget'],
+				limit: 'BudgetInterface',
+				received: preview(budget),
+			},
+		})
+	}
+	if (!isFunction(estimator)) {
+		throw new ContractError('Meter: estimator must be a function', {
+			code: 'placement',
+			context: {
+				path: ['options', 'estimator'],
+				limit: 'function',
+				received: preview(estimator),
+			},
+		})
+	}
+	if (!isFunction(producer)) {
+		throw new ContractError('Meter: producer must be a function', {
+			code: 'placement',
+			context: {
+				path: ['options', 'producer'],
+				limit: 'function',
+				received: preview(producer),
+			},
+		})
+	}
+
+	return { budget, estimator, producer }
+}
+
+/**
+ * Validates and normalizes token-meter construction options into a fresh copy.
+ *
+ * @remarks
+ * Each property is read exactly once before validation.
+ *
+ * @param options - Potentially untrusted token-meter options
+ * @returns A fresh validated `TokenMeterOptions` object
+ * @throws {@link import('@orkestrel/contract').ContractError} When the input
+ *   does not satisfy `TokenMeterOptions`
+ *
+ * @example
+ * ```ts
+ * const options = validateTokenMeterOptions({
+ * 	budget: createTokenBudget({ max: 1_000 }),
+ * 	estimator: (text) => Math.ceil(text.length / 4),
+ * })
+ * ```
+ */
+export function validateTokenMeterOptions(options: TokenMeterOptions): TokenMeterOptions {
+	if (!isRecord(options)) {
+		throw new ContractError('TokenMeter: options must be a plain record', {
+			code: 'bound',
+			context: {
+				path: ['options'],
+				limit: 'plain record',
+				received: preview(options),
+			},
+		})
+	}
+
+	const { budget, estimator } = readValue(
+		() => ({
+			budget: options.budget,
+			estimator: options.estimator,
+		}),
+		'TokenMeter',
+		{
+			subject: 'options',
+			code: 'bound',
+			context: {
+				path: ['options'],
+				limit: 'readable plain record',
+				received: preview(options),
+			},
+		},
+	)
+
+	if (!isBudget(budget)) {
+		throw new ContractError('TokenMeter: budget must implement BudgetInterface', {
+			code: 'placement',
+			context: {
+				path: ['options', 'budget'],
+				limit: 'BudgetInterface',
+				received: preview(budget),
+			},
+		})
+	}
+	if (!isFunction(estimator)) {
+		throw new ContractError('TokenMeter: estimator must be a function', {
+			code: 'placement',
+			context: {
+				path: ['options', 'estimator'],
+				limit: 'function',
+				received: preview(estimator),
+			},
+		})
+	}
+
+	return { budget, estimator }
 }

@@ -1,9 +1,14 @@
-import type { BudgetInterface, BudgetOptions } from '@src/core'
-import { Budget } from '@src/core'
+import type { BudgetErrorContext, BudgetInterface, BudgetOptions } from '@src/core'
+import { Budget, BudgetError, isBudgetError } from '@src/core'
 import { ContractError, preview } from '@orkestrel/contract'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { captureError, createRecorder } from '@orkestrel/test'
-import { captureContractError, defineThrowingProperty, selectCharge } from '../../setup.js'
+import {
+	captureContractError,
+	defineThrowingProperty,
+	requireBudgetError,
+	selectCharge,
+} from '../../setup.js'
 
 describe('Budget construction boundary', () => {
 	it.each([
@@ -377,8 +382,123 @@ describe('Budget parent composition', () => {
 		expect(budget.signal.aborted).toBe(true)
 		expect(budget.exhausted).toBe(true)
 		expect(parent.signal.aborted).toBe(false)
-		expect(budget.signal.reason instanceof DOMException).toBe(true)
-		expect(budget.signal.reason.name).toBe('AbortError')
+		expect(requireBudgetError(budget.signal.reason).context.consumed).toBe(10)
+	})
+})
+
+describe('Budget exhaustion reason', () => {
+	it('aborts at the crossing with a BudgetError carrying the exact readings', () => {
+		const budget = new Budget<number>({ id: 'tokens', max: 10, consumer: selectCharge })
+
+		budget.consume(10)
+		const reason = requireBudgetError(budget.signal.reason)
+
+		expect(reason.name).toBe('BudgetError')
+		expect(reason.code).toBe('exhaust')
+		expect(reason.message).toBe('budget reached its ceiling')
+		expect(reason.context).toEqual({ id: 'tokens', max: 10, consumed: 10 })
+	})
+
+	it('records the overshot tally of the charge that crossed', () => {
+		const budget = new Budget<number>({ id: 'tokens', max: 10, consumer: selectCharge })
+
+		budget.consume(9)
+		budget.consume(5)
+		budget.consume(7)
+
+		expect(requireBudgetError(budget.signal.reason).context).toEqual({
+			id: 'tokens',
+			max: 10,
+			consumed: 14,
+		})
+		expect(budget.consumed).toBe(21)
+	})
+
+	it('start on an exhausted budget arms a fresh BudgetError with the current tally', () => {
+		const budget = new Budget<number>({ id: 'tokens', max: 10, consumer: selectCharge })
+		budget.consume(11)
+		const crossing = budget.signal.reason
+
+		budget.start()
+		const armed = requireBudgetError(budget.signal.reason)
+
+		expect(armed).not.toBe(crossing)
+		expect(armed.context).toEqual({ id: 'tokens', max: 10, consumed: 11 })
+	})
+
+	it('names the generated id when none was supplied', () => {
+		const budget = new Budget<number>({ max: 0, consumer: selectCharge })
+
+		budget.start()
+
+		expect(requireBudgetError(budget.signal.reason).context).toEqual({
+			id: budget.id,
+			max: 0,
+			consumed: 0,
+		})
+	})
+
+	it('keeps the parent reason when the parent aborts and relabels nothing', () => {
+		const parent = new AbortController()
+		const cancelled = new Error('cancelled')
+		const budget = new Budget<number>({ max: 10, consumer: selectCharge, signal: parent.signal })
+
+		parent.abort(cancelled)
+
+		expect(budget.signal.reason).toBe(cancelled)
+		expect(isBudgetError(budget.signal.reason)).toBe(false)
+	})
+
+	// The guard in `consume` reads the composed signal, so an aborted parent is never relabelled
+	// with the budget's own reason. This case tells that guard from one that reads the owned
+	// controller only on a host whose `AbortSignal.any` propagates a parent abort lazily, to the
+	// composite when something reads it. Where propagation is eager, as on Node 24.22.0, the two
+	// guards are equivalent and the case holds for both.
+	it('keeps the parent reason when the parent was aborted before the budget crossed', () => {
+		const parent = new AbortController()
+		const cancelled = new Error('cancelled first')
+		const budget = new Budget<number>({ max: 10, consumer: selectCharge, signal: parent.signal })
+		parent.abort(cancelled)
+
+		budget.consume(10)
+
+		expect(budget.exhausted).toBe(true)
+		expect(budget.signal.reason).toBe(cancelled)
+	})
+
+	it('keeps the parent reason when start arms an exhausted budget under an aborted parent', () => {
+		const parent = new AbortController()
+		const cancelled = new Error('cancelled before start')
+		const budget = new Budget<number>({ max: 10, consumer: selectCharge, signal: parent.signal })
+		budget.consume(10)
+		parent.abort(cancelled)
+
+		budget.start()
+
+		expect(budget.signal.reason).toBe(cancelled)
+	})
+
+	it('reaches an AbortSignal.any composition as the identical reason', () => {
+		const budget = new Budget<number>({ max: 10, consumer: selectCharge })
+		const bound = AbortSignal.any([new AbortController().signal, budget.signal])
+
+		budget.consume(10)
+
+		expect(bound.reason).toBe(budget.signal.reason)
+		expect(isBudgetError(bound.reason)).toBe(true)
+	})
+
+	it('narrows only a BudgetError with isBudgetError', () => {
+		const lookalike = Object.assign(new Error('budget reached its ceiling'), { code: 'exhaust' })
+		const revoked = Proxy.revocable(new BudgetError({ id: 'a', max: 1, consumed: 1 }), {})
+		revoked.revoke()
+
+		expect(isBudgetError(new BudgetError({ id: 'a', max: 1, consumed: 1 }))).toBe(true)
+		expect(isBudgetError(new DOMException('aborted', 'AbortError'))).toBe(false)
+		expect(isBudgetError(lookalike)).toBe(false)
+		expect(isBudgetError(null)).toBe(false)
+		expect(isBudgetError(undefined)).toBe(false)
+		expect(isBudgetError(revoked.proxy)).toBe(false)
 	})
 })
 
@@ -394,5 +514,16 @@ describe('Budget type shape', () => {
 		expectTypeOf<BudgetInterface<number>['consume']>().toEqualTypeOf<(value: number) => void>()
 		expectTypeOf<BudgetInterface<number>['clear']>().toEqualTypeOf<() => void>()
 		expectTypeOf<BudgetOptions<number>['consumer']>().toEqualTypeOf<(value: number) => number>()
+	})
+
+	it('types the exhaustion error with a literal code and the exact readings', () => {
+		expectTypeOf<BudgetError['code']>().toEqualTypeOf<'exhaust'>()
+		expectTypeOf<BudgetError['context']>().toEqualTypeOf<BudgetErrorContext>()
+		expectTypeOf<BudgetErrorContext>().toEqualTypeOf<{
+			readonly id: string
+			readonly max: number
+			readonly consumed: number
+		}>()
+		expectTypeOf(isBudgetError).guards.toEqualTypeOf<BudgetError>()
 	})
 })

@@ -12,6 +12,12 @@ const FENCE_LANGUAGES = Object.freeze(['ts'])
 const EXAMPLE_LANGUAGE = 'ts'
 /** The one guide this package sources, whose tagline the README pitch equals. */
 const GUIDE_SPEC = 'guides/budget.md'
+/** The titles this package's guide and its source each carry as one compared example pair. */
+const PINNED_TITLES = Object.freeze([
+	'Race work against the ceiling',
+	'Meter a streamed answer',
+	'Trace an exhaustion',
+])
 /** The package identity that binds its manifest, module map, and README pitch. */
 const PACKAGE_NAME = '@orkestrel/budget'
 /** Each import specifier this package's own guides may resolve against. */
@@ -38,8 +44,8 @@ await new GuideCommand({
 	const { isRecord, parseJSON } = await import('@orkestrel/contract')
 	const { computeSymbolKey, findMissingSymbols } = await import('@orkestrel/guide')
 	const { createRecorder, requireValue } = await import('@orkestrel/test')
-	const { createBudget, createTokenBudget } = await import('@src/core')
-	const { createTokenUsage } = await import('./setup.js')
+	const { createBudget, createTokenBudget, createTokenMeter } = await import('@src/core')
+	const { createTokenUsage, requireBudgetError } = await import('./setup.js')
 	const { describe, expect, it } = await import('vitest')
 	const manifest = parseJSON(requireValue(files['package.json'], 'Missing inventory: package.json'))
 	if (!isRecord(manifest)) throw new Error('Invalid package manifest: package.json')
@@ -59,6 +65,20 @@ await new GuideCommand({
 	it('pairs at least one example title across the guide and the source', () => {
 		expect(report.examples.titles.filter((finding) => finding.spec === GUIDE_SPEC)).toEqual([])
 	})
+
+	// The case above passes while any one title pairs, so untitling the others retires their
+	// pairs silently: an untitled block leaves the equality gate. Each title is asserted on
+	// both sides, so removing it from either side reddens that title's own case.
+	const pinned = requireValue(
+		rows.find((row) => row.entry.spec === GUIDE_SPEC),
+		`Missing manifest row: ${GUIDE_SPEC}`,
+	)
+	for (const title of PINNED_TITLES) {
+		it(`pairs the titled example ${title} on the guide and the source`, () => {
+			expect(pinned.guide.fences().map((fence) => fence.title)).toContain(title)
+			expect(pinned.source.examples().map((example) => example.title)).toContain(title)
+		})
+	}
 
 	// The README's pitch and the guide's tagline are one text, each read as the blockquote
 	// under its file's H1. `README.md` is outside the concept index, so the reader is
@@ -182,15 +202,15 @@ await new GuideCommand({
 			budget.start()
 			budget.signal.addEventListener('abort', fired.handler, { once: true })
 			const chunks: readonly number[] = [400_000, 400_000, 400_000, 400_000]
-			const processed: number[] = []
+			const processed = createRecorder<readonly [number]>()
 
 			for (const byteLength of chunks) {
 				if (budget.signal.aborted) break
 				budget.consume(byteLength)
-				processed.push(byteLength)
+				processed.handler(byteLength)
 			}
 
-			expect(processed).toEqual([400_000, 400_000, 400_000])
+			expect(processed.calls).toEqual([[400_000], [400_000], [400_000]])
 			expect(budget.consumed).toBe(1_200_000)
 			expect(fired.count).toBe(1)
 		})
@@ -274,6 +294,53 @@ await new GuideCommand({
 				'budget.clear() // consumed resets to 0, remaining is max again, signal is fresh',
 			)
 			expect(guideText).toContain('budget.consume(200) // spends against the new window')
+		})
+
+		it('meters a streamed answer by the growth of its estimate', () => {
+			// Transcribed from the meter fence: each comment on the fence is an assertion here,
+			// read off the budget after the charge it follows.
+			const budget = createTokenBudget({ max: 1_000, scope: 'completion' })
+			const meter = createTokenMeter({ budget, estimator: (text) => Math.ceil(text.length / 4) })
+
+			meter.charge('Once upon')
+			expect(budget.consumed).toBe(3)
+			meter.charge(' a')
+			expect(budget.consumed).toBe(3)
+			meter.charge(' time')
+			expect(budget.consumed).toBe(4)
+			expect(meter.charged).toBe(4)
+		})
+
+		it('carries the meter fence lines the transcription copies', () => {
+			expect(guideText).toContain(
+				'const meter = createTokenMeter({ budget, estimator: (text) => Math.ceil(text.length / 4) })',
+			)
+			expect(guideText).toContain(
+				"meter.charge('Once upon') // estimate 3 — consumes 3 completion tokens",
+			)
+			expect(guideText).toContain("meter.charge(' a') // estimate still 3 — charges nothing")
+			expect(guideText).toContain("meter.charge(' time') // estimate 4 — consumes 1 more")
+			expect(guideText).toContain('budget.consumed // 4')
+		})
+
+		it('reads the budget and the readings off an exhausted budget signal', () => {
+			// Transcribed from the exhaustion fence: the reason is a BudgetError whose context
+			// holds the readings the fence's comment claims.
+			const budget = createBudget<number>({ id: 'tokens', max: 10, consumer: (tokens) => tokens })
+			budget.consume(12)
+			const reason = budget.signal.reason
+
+			expect(requireBudgetError(reason).context).toEqual({ id: 'tokens', max: 10, consumed: 12 })
+		})
+
+		it('carries the exhaustion fence lines the transcription copies', () => {
+			expect(guideText).toContain(
+				"const budget = createBudget<number>({ id: 'tokens', max: 10, consumer: (tokens) => tokens })",
+			)
+			expect(guideText).toContain('budget.consume(12)')
+			expect(guideText).toContain(
+				"if (isBudgetError(reason)) reason.context // { id: 'tokens', max: 10, consumed: 12 }",
+			)
 		})
 	})
 })

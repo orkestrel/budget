@@ -1,13 +1,16 @@
 import type {
 	BudgetInterface,
 	BudgetOptions,
+	MeterInterface,
 	TokenBudgetOptions,
+	TokenMeterOptions,
 	TokenScope,
 	TokenUsage,
 } from './types.js'
 import { ContractError, preview, readValue } from '@orkestrel/contract'
 import { Budget } from './Budget.js'
-import { validateTokenBudgetOptions } from './helpers.js'
+import { Meter } from './Meter.js'
+import { validateTokenBudgetOptions, validateTokenMeterOptions } from './helpers.js'
 import { isBudgetAmount, isTokenScope, isTokenUsage } from './validators.js'
 
 /**
@@ -140,5 +143,42 @@ export function createTokenBudget(options: TokenBudgetOptions): BudgetInterface<
 		max: input.max,
 		consumer,
 		...(input.signal === undefined ? {} : { signal: input.signal }),
+	})
+}
+
+/**
+ * Creates a token meter as a `MeterInterface` that charges a token budget each
+ * growth of a streamed answer's estimated token count as completion tokens.
+ *
+ * @remarks
+ * Each growth `n` is consumed as `{ prompt: 0, completion: n, total: n }`, so a
+ * `completion`- or `total`-scoped budget tracks the stream before the provider
+ * reports its usage, and `charged` is the completion estimate that report is
+ * reconciled against. Construction validates its own untyped boundary before
+ * composing the generic meter.
+ *
+ * @param options - Strict token-meter construction options
+ * @returns A meter for one streamed answer
+ * @throws {@link import('@orkestrel/contract').ContractError} When the
+ *   JavaScript input does not satisfy `TokenMeterOptions`
+ *
+ * @example Meter a streamed answer
+ * ```ts
+ * import { createTokenBudget, createTokenMeter } from '@orkestrel/budget'
+ *
+ * const budget = createTokenBudget({ max: 1_000, scope: 'completion' })
+ * const meter = createTokenMeter({ budget, estimator: (text) => Math.ceil(text.length / 4) })
+ * meter.charge('Once upon') // estimate 3 — consumes 3 completion tokens
+ * meter.charge(' a') // estimate still 3 — charges nothing
+ * meter.charge(' time') // estimate 4 — consumes 1 more
+ * budget.consumed // 4
+ * ```
+ */
+export function createTokenMeter(options: TokenMeterOptions): MeterInterface {
+	const input = validateTokenMeterOptions(options)
+	return new Meter<TokenUsage>({
+		budget: input.budget,
+		estimator: input.estimator,
+		producer: (charge) => ({ prompt: 0, completion: charge, total: charge }),
 	})
 }

@@ -1,5 +1,6 @@
 import type { BudgetInterface, BudgetOptions } from './types.js'
 import { ContractError, preview } from '@orkestrel/contract'
+import { BudgetError } from './errors.js'
 import { validateBudgetOptions } from './helpers.js'
 import { isBudgetAmount } from './validators.js'
 
@@ -17,7 +18,9 @@ import { isBudgetAmount } from './validators.js'
  * `start()` re-arms without resetting cumulative consumption; `clear()` resets
  * the tally and re-arms. Consumption before `start()` remains supported. The
  * exposed signal composes the owned exhaustion controller with an optional
- * native parent signal, preserving the first abort reason.
+ * native parent signal, preserving the first abort reason. The owned exhaustion
+ * aborts with a {@link BudgetError} naming the budget's `id`, `max`, and `consumed`
+ * at the crossing, and a parent's abort keeps the parent's own reason.
  *
  * @example
  * ```ts
@@ -74,7 +77,7 @@ export class Budget<T> implements BudgetInterface<T> {
 	start(): void {
 		this.#controller = new AbortController()
 		this.#signal = this.#compose()
-		if (this.exhausted) this.#controller.abort()
+		if (this.exhausted) this.#controller.abort(this.#exhaust())
 	}
 
 	consume(value: T): void {
@@ -102,7 +105,7 @@ export class Budget<T> implements BudgetInterface<T> {
 		}
 
 		this.#consumed = consumed
-		if (this.exhausted && !this.#controller.signal.aborted) this.#controller.abort()
+		if (this.exhausted && !this.#signal.aborted) this.#controller.abort(this.#exhaust())
 	}
 
 	clear(): void {
@@ -115,5 +118,10 @@ export class Budget<T> implements BudgetInterface<T> {
 		return this.#parent === undefined
 			? this.#controller.signal
 			: AbortSignal.any([this.#controller.signal, this.#parent])
+	}
+
+	// The abort reason of the owned exhaustion: this budget's readings at the crossing.
+	#exhaust(): BudgetError {
+		return new BudgetError({ id: this.#id, max: this.#max, consumed: this.#consumed })
 	}
 }

@@ -20,7 +20,7 @@ import {
 } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, parse, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 
@@ -73,6 +73,14 @@ const ADDON_EXTENSION = '.node'
 // `.d.cts` and an ESM-only one `.d.mts`, so the `.d.ts` spelling alone does not
 // name them.
 const DECLARATION_EXTENSIONS = ['.d.ts', '.d.cts', '.d.mts']
+// The declaration spelling TypeScript substitutes beside each JavaScript target, as the
+// target's own extension and the declaration extension that replaces it.
+const DECLARATION_SUBSTITUTIONS: ReadonlyArray<readonly [extension: string, declaration: string]> =
+	[
+		['.cjs', '.d.cts'],
+		['.mjs', '.d.mts'],
+		['.js', '.d.ts'],
+	]
 type Format = 'module' | 'commonjs'
 
 // The Node import target is resolved with the conditions that driver supplies. The
@@ -106,6 +114,14 @@ interface Resolution {
 
 interface TargetResolution {
 	readonly target: string
+}
+
+// The declaration each importing format resolves for one subpath, absent where a format
+// resolves none.
+interface Declarations {
+	readonly module: string | undefined
+	readonly commonjs: string | undefined
+	readonly browser: string | undefined
 }
 
 // Each compile driver carries the compiler options its scratch project sets and
@@ -186,6 +202,16 @@ function isNames(value: unknown): value is readonly string[] {
 	return isArray(value) && value.every((name) => isString(name))
 }
 
+// A path segment with its percent escapes decoded. A segment that is not a valid escape
+// sequence is kept as written, because Node compares it undecoded.
+function decodeSegment(segment: string): string {
+	try {
+		return decodeURIComponent(segment)
+	} catch {
+		return segment
+	}
+}
+
 // Whether a string is a valid package target. Node rejects a target outside the
 // package and a target containing a dot, parent, or node_modules segment during
 // package-target resolution. A later module-resolution failure is not the same
@@ -193,11 +219,7 @@ function isNames(value: unknown): value is readonly string[] {
 function isPackageTarget(target: string): boolean {
 	if (!target.startsWith('./')) return false
 	for (const segment of target.slice(2).split(/[\\/]/u)) {
-		let decoded = segment
-		try {
-			decoded = decodeURIComponent(segment)
-		} catch {}
-		const normalized = decoded.toLowerCase()
+		const normalized = decodeSegment(segment).toLowerCase()
 		if (normalized === '.' || normalized === '..' || normalized === 'node_modules') return false
 	}
 	return true
@@ -284,11 +306,12 @@ function matchesFile(path: string): boolean {
 // the containing condition or fallback list unresolved, so the walk continues.
 function targetToDeclaration(target: string, installed: string): string | undefined {
 	if (!isPackageTarget(target)) return undefined
-	let declaration = target
-	if (target.endsWith('.cjs')) declaration = `${target.slice(0, -4)}.d.cts`
-	else if (target.endsWith('.mjs')) declaration = `${target.slice(0, -4)}.d.mts`
-	else if (target.endsWith('.js')) declaration = `${target.slice(0, -3)}.d.ts`
-	else if (!isDeclaration(target)) return undefined
+	const substitution = DECLARATION_SUBSTITUTIONS.find(([extension]) => target.endsWith(extension))
+	if (substitution === undefined && !isDeclaration(target)) return undefined
+	const declaration =
+		substitution === undefined
+			? target
+			: `${target.slice(0, -substitution[0].length)}${substitution[1]}`
 	return matchesFile(join(installed, declaration)) ? declaration : undefined
 }
 
@@ -316,25 +339,42 @@ function resolveDeclaration(
 	return undefined
 }
 
+// The lengths of a normalized directory and of each of its ancestors, nearest first, ending
+// at the filesystem root. A candidate is the directory sliced to one of these lengths.
+function listAncestorLengths(directory: string): readonly number[] {
+	const { root } = parse(directory)
+	const separators = Array.from(directory.matchAll(/[\\/]/gu), (match) => match.index)
+	const below = separators.filter((index) => index >= root.length).toReversed()
+	return directory.length === root.length
+		? [root.length]
+		: [directory.length, ...below, root.length]
+}
+
+// The nearest manifest at or above a directory, walking toward the installed root. A
+// directory at that spelling is not a manifest, so the search continues past it. The
+// candidates derive from the normalized path's own separators, so the search holds no
+// call stack per level and ends at the installed root, or at the filesystem root when the
+// directory does not lie under it, however deep the path.
+function locateManifest(directory: string, installed: string): string | undefined {
+	const lengths = listAncestorLengths(directory)
+	const floor =
+		directory.startsWith(installed) && lengths.includes(installed.length) ? installed.length : 0
+	const length = lengths
+		.filter((candidate) => candidate >= floor)
+		.find((candidate) => matchesFile(join(directory.slice(0, candidate), 'package.json')))
+	return length === undefined ? undefined : join(directory.slice(0, length), 'package.json')
+}
+
 // The nearest package scope that decides a `.d.ts` declaration's module format. A
-// physical nested manifest starts a scope even when it omits `type` or cannot be
-// parsed. A directory at that spelling is not a manifest, so the walk continues.
+// physical nested manifest starts a scope even when it omits `type` or cannot be parsed.
 function readPackageType(installed: string, target: string): unknown {
-	let directory = dirname(join(installed, target))
-	while (true) {
-		const path = join(directory, 'package.json')
-		if (matchesFile(path)) {
-			try {
-				const manifest = readJson(path)
-				return isRecord(manifest) ? manifest.type : undefined
-			} catch {
-				return undefined
-			}
-		}
-		if (directory === installed) return undefined
-		const parent = dirname(directory)
-		if (parent === directory) return undefined
-		directory = parent
+	const path = locateManifest(dirname(join(installed, target)), installed)
+	if (path === undefined) return undefined
+	try {
+		const manifest = readJson(path)
+		return isRecord(manifest) ? manifest.type : undefined
+	} catch {
+		return undefined
 	}
 }
 
@@ -407,19 +447,17 @@ function isDeclaration(target: string): boolean {
 // against. Each field uses the conditions of the TypeScript consumer paired with
 // that runtime. A JavaScript target resolves through TypeScript's adjacent
 // declaration substitution rather than standing in for the declaration itself.
-function readDeclaration(
-	entry: unknown,
-	installed: string,
-): {
-	readonly module: string | undefined
-	readonly commonjs: string | undefined
-	readonly browser: string | undefined
-} {
+function readDeclaration(entry: unknown, installed: string): Declarations {
 	return {
 		module: resolveDeclaration(entry, DECLARATION_CONDITIONS.module, installed),
 		commonjs: resolveDeclaration(entry, DECLARATION_CONDITIONS.commonjs, installed),
 		browser: resolveDeclaration(entry, DECLARATION_CONDITIONS.browser, installed),
 	}
+}
+
+// Whether any importing format resolves a declaration.
+function hasDeclaration(declaration: Declarations): boolean {
+	return Object.values(declaration).some((path) => path !== undefined)
 }
 
 // The entries one compile driver can resolve under its own conditions.
@@ -503,16 +541,17 @@ function checkProject(stage: Stage, project: string): readonly string[] {
 	if (refused.length > 0) {
 		throw new Error(`The consumer compiler wrote ${refused} to its error stream`)
 	}
-	const reported: string[] = []
-	for (const line of `${result.stdout ?? ''}`.split(/\r\n|\n/u)) {
-		if (line.trim().length === 0) continue
-		const last = reported.at(-1)
-		// An elaborated diagnostic prints its detail on indented lines under its own
-		// first line, so each of those joins the diagnostic it elaborates.
-		if (/^\s/u.test(line) && last !== undefined) {
-			reported[reported.length - 1] = `${last} ${line.trim()}`
-			continue
-		}
+	// An elaborated diagnostic prints its detail on indented lines under its own first
+	// line, so each of those joins the diagnostic it elaborates. Each line is classified
+	// once, and each diagnostic is built whole from its first line and its details.
+	const records = `${result.stdout ?? ''}`
+		.split(/\r\n|\n/u)
+		.filter((line) => line.trim().length > 0)
+		.map((line, index) => ({ line, continuation: index > 0 && /^\s/u.test(line) }))
+	const heads = records.flatMap((record, index) =>
+		record.continuation ? [] : [{ line: record.line, index }],
+	)
+	for (const { line } of heads) {
 		const located = DIAGNOSTIC_PATTERN.exec(line)?.[1]
 		if (located === undefined) {
 			throw new Error(`The consumer compiler reported ${line}, which names no location`)
@@ -520,8 +559,12 @@ function checkProject(stage: Stage, project: string): readonly string[] {
 		if (resolve(stage.consumer, located) === project) {
 			throw new Error(`The scratch project is itself at fault: ${line}`)
 		}
-		reported.push(line)
 	}
+	const reported = heads.map((head, position) => {
+		const end = heads[position + 1]?.index ?? records.length
+		const details = records.slice(head.index + 1, end).map((record) => record.line.trim())
+		return [head.line, ...details].join(' ')
+	})
 	if (reported.length === 0 && result.status !== 0) {
 		throw new Error(`The consumer compiler refused the project: ${readOutput(result)}`)
 	}
@@ -558,13 +601,14 @@ const surfaced: Record<keyof typeof published, true> = declared
 // One consumer module importing every installed entry, written where its own
 // resolution finds the installed package.
 function writeConsumerProbe(stage: Stage, path: string, specifiers: readonly string[]): void {
-	const names: string[] = []
-	const bindings: string[] = []
-	for (const [index, specifier] of specifiers.entries()) {
-		const binding = `entry${String(index)}`
-		names.push(binding)
-		bindings.push(`import * as ${binding} from ${JSON.stringify(specifier)}`)
-	}
+	const imports = specifiers.map((specifier, index) => ({
+		binding: `entry${String(index)}`,
+		specifier,
+	}))
+	const bindings = imports.map(
+		(entry) => `import * as ${entry.binding} from ${JSON.stringify(entry.specifier)}`,
+	)
+	const names = imports.map((entry) => entry.binding)
 	const source = `${bindings.join('\n')}\nexport const surface = [${names.join(', ')}]\n`
 	writeFile(join(stage.consumer, path), source)
 }
@@ -612,51 +656,50 @@ function buildStage(): Stage {
 	if (!isRecord(manifest) || !isRecord(manifest.exports)) {
 		throw new Error('The installed manifest publishes no exports map')
 	}
-	const entries: Entry[] = []
-	const targets: string[] = []
-	const subpaths: string[] = []
-	const undeclared: string[] = []
-	const excluded: string[] = []
-	for (const [subpath, entry] of Object.entries(manifest.exports)) {
-		const files = collectTargets(entry)
-		targets.push(...files)
-		subpaths.push(subpath)
-		const declaration = readDeclaration(entry, installed)
-		// A subpath resolving no declaration is partitioned rather than dropped. It is a
-		// defect when a runtime loads one of its targets for names, because a consumer
-		// importing it compiles against nothing under `node16`. It is an excluded
-		// publication otherwise: the `"./package.json"` manifest pointer and a stylesheet
-		// are published for a reader rather than an importer.
-		if (
-			declaration.module === undefined &&
-			declaration.commonjs === undefined &&
-			declaration.browser === undefined
-		) {
-			if (files.some(isModule)) undeclared.push(subpath)
-			else excluded.push(subpath)
-			continue
-		}
-		const imported = resolveTarget(entry, RUNTIME_CONDITIONS.module)
-		const requiredTarget = resolveTarget(entry, RUNTIME_CONDITIONS.commonjs)
-		const browserTarget = resolveTarget(entry, RUNTIME_CONDITIONS.browser)
-		const browser = resolvesBrowser(entry)
-		const required = requiredTarget !== undefined && !(browser && requiredTarget === browserTarget)
-		const commonjs = required && resolvesCommonJS(entry, installed)
-		entries.push({
-			subpath,
-			specifier: subpath === '.' ? name : `${name}${subpath.slice(1)}`,
-			mapping: entry,
-			declaration: {
-				module: declaration.module !== undefined,
-				commonjs: declaration.commonjs !== undefined,
-				browser: declaration.browser !== undefined,
-			},
-			browser,
-			module: imported !== undefined && !(browser && imported === browserTarget),
-			commonjs,
-			required,
+	const published = Object.entries(manifest.exports).map(([subpath, mapping]) => ({
+		subpath,
+		mapping,
+		files: collectTargets(mapping),
+		declaration: readDeclaration(mapping, installed),
+	}))
+	const subpaths = published.map((record) => record.subpath)
+	const targets = published.flatMap((record) => record.files)
+	// A subpath resolving no declaration is partitioned rather than dropped. It is a
+	// defect when a runtime loads one of its targets for names, because a consumer
+	// importing it compiles against nothing under `node16`. It is an excluded
+	// publication otherwise: the `"./package.json"` manifest pointer and a stylesheet
+	// are published for a reader rather than an importer.
+	const bare = published.filter((record) => !hasDeclaration(record.declaration))
+	const undeclared = bare
+		.filter((record) => record.files.some(isModule))
+		.map((record) => record.subpath)
+	const excluded = bare
+		.filter((record) => !record.files.some(isModule))
+		.map((record) => record.subpath)
+	const entries = published
+		.filter((record) => hasDeclaration(record.declaration))
+		.map(({ subpath, mapping, declaration }): Entry => {
+			const imported = resolveTarget(mapping, RUNTIME_CONDITIONS.module)
+			const requiredTarget = resolveTarget(mapping, RUNTIME_CONDITIONS.commonjs)
+			const browserTarget = resolveTarget(mapping, RUNTIME_CONDITIONS.browser)
+			const browser = resolvesBrowser(mapping)
+			const required =
+				requiredTarget !== undefined && !(browser && requiredTarget === browserTarget)
+			return {
+				subpath,
+				specifier: subpath === '.' ? name : `${name}${subpath.slice(1)}`,
+				mapping,
+				declaration: {
+					module: declaration.module !== undefined,
+					commonjs: declaration.commonjs !== undefined,
+					browser: declaration.browser !== undefined,
+				},
+				browser,
+				module: imported !== undefined && !(browser && imported === browserTarget),
+				commonjs: required && resolvesCommonJS(mapping, installed),
+				required,
+			}
 		})
-	}
 	return { consumer, installed, archives, entries, subpaths, undeclared, excluded, targets }
 }
 
@@ -719,6 +762,9 @@ describe('distribution classifiers', () => {
 					module: { require: './x.mjs' },
 					'nested-module': { require: './module/x.js' },
 					'nested-commonjs': { require: './commonjs/x.js' },
+					// A target far below its nearest manifest still resolves that manifest: the
+					// walk ends at a manifest or a root, never at a fixed number of parents.
+					'deep-module': { require: `./module/${'a/'.repeat(65)}x.js` },
 					esm: { import: './x.mjs' },
 				},
 			}),
@@ -750,12 +796,14 @@ describe('distribution classifiers', () => {
 			module: resolvesCommonJS(mappings.module, root),
 			nestedModule: resolvesCommonJS(mappings['nested-module'], root),
 			nestedCommonJS: resolvesCommonJS(mappings['nested-commonjs'], root),
+			deepModule: resolvesCommonJS(mappings['deep-module'], root),
 			esm: resolvesCommonJS(mappings.esm, root),
 		}).toStrictEqual({
 			silent: true,
 			module: false,
 			nestedModule: false,
 			nestedCommonJS: true,
+			deepModule: false,
 			esm: false,
 		})
 	})
@@ -828,28 +876,32 @@ describe('installed package consumer', () => {
 	it('compiles a consumer under every module resolution [requires the registry]', (context) => {
 		const stage = requireStage(context)
 		const name = readManifestName(join(stage.installed, 'package.json'))
-		const reported: string[] = []
-		const silent: string[] = []
-		for (const driver of RESOLUTIONS) {
-			for (const [extension, format] of FORMATS) {
-				const written = selectEntries(stage.entries, driver.conditions[format])
-				if (written.length === 0) continue
-				const label = `${driver.label}.${extension}`
+		const outcomes = RESOLUTIONS.flatMap((driver) =>
+			FORMATS.map(([extension, format]) => ({
+				driver,
+				label: `${driver.label}.${extension}`,
+				written: selectEntries(stage.entries, driver.conditions[format]),
+			})),
+		)
+			.filter(({ written }) => written.length > 0)
+			.map(({ driver, label, written }) => {
 				const probe = `probe.${label}`
-				const specifiers = written.map((entry) => entry.specifier)
-				writeConsumerProbe(stage, probe, specifiers)
+				writeConsumerProbe(
+					stage,
+					probe,
+					written.map((entry) => entry.specifier),
+				)
 				const project = writeProject(stage, probe, driver, [`./${probe}`])
-				for (const message of checkProject(stage, project)) {
-					reported.push(`${label}: ${message}`)
-				}
 				const control = `control.${label}`
+				const reported = checkProject(stage, project).map((message) => `${label}: ${message}`)
 				writeConsumerProbe(stage, control, [`${name}${ABSENT_SUBPATH}`])
 				const refused = writeProject(stage, control, driver, [`./${control}`])
-				if (checkProject(stage, refused).length === 0) silent.push(label)
-			}
-		}
-		expect(reported).toStrictEqual([])
-		expect(silent).toStrictEqual([])
+				return { label, reported, silent: checkProject(stage, refused).length === 0 }
+			})
+		expect(outcomes.flatMap((outcome) => outcome.reported)).toStrictEqual([])
+		expect(
+			outcomes.filter((outcome) => outcome.silent).map((outcome) => outcome.label),
+		).toStrictEqual([])
 	})
 
 	// This proof drives a Node import and a Node require and carries no browser

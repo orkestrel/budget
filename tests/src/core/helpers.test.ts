@@ -1,12 +1,20 @@
-import type { BudgetOptions, TokenBudgetOptions } from '@src/core'
-import { validateBudgetOptions, validateTokenBudgetOptions } from '@src/core'
+﻿import type { BudgetOptions, MeterOptions, TokenBudgetOptions, TokenMeterOptions } from '@src/core'
+import {
+	createTokenBudget,
+	validateBudgetOptions,
+	validateMeterOptions,
+	validateTokenBudgetOptions,
+	validateTokenMeterOptions,
+} from '@src/core'
 import { preview } from '@orkestrel/contract'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
+	ReadingProxy,
 	captureContractError,
-	createReadingProxy,
+	createRecordingBudget,
 	defineThrowingProperty,
 	selectCharge,
+	selectLength,
 } from '../../setup.js'
 
 describe('validateBudgetOptions', () => {
@@ -37,7 +45,7 @@ describe('validateBudgetOptions', () => {
 	})
 
 	it('reads each declared property exactly once', () => {
-		const { proxy, reads } = createReadingProxy<BudgetOptions<number>>({
+		const { proxy, reads } = new ReadingProxy<BudgetOptions<number>>({
 			id: 'meter',
 			max: 10,
 			consumer: selectCharge,
@@ -130,7 +138,7 @@ describe('validateTokenBudgetOptions', () => {
 	})
 
 	it('reads each declared property exactly once', () => {
-		const { proxy, reads } = createReadingProxy<TokenBudgetOptions>({
+		const { proxy, reads } = new ReadingProxy<TokenBudgetOptions>({
 			id: 'tokens',
 			max: 10,
 			scope: 'prompt',
@@ -192,5 +200,202 @@ describe('validateTokenBudgetOptions', () => {
 
 	it('preserves the token options type', () => {
 		expectTypeOf(validateTokenBudgetOptions).returns.toEqualTypeOf<TokenBudgetOptions>()
+	})
+})
+
+describe('validateMeterOptions', () => {
+	it('returns a fresh copy that keeps the budget and both functions by identity', () => {
+		const { budget } = createRecordingBudget<number>(10, selectCharge)
+		const input: MeterOptions<number> = {
+			budget,
+			estimator: selectLength,
+			producer: selectCharge,
+		}
+		const output = validateMeterOptions(input)
+
+		expect(output).not.toBe(input)
+		expect(output.budget).toBe(budget)
+		expect(output.estimator).toBe(selectLength)
+		expect(output.producer).toBe(selectCharge)
+		expect(Object.keys(output)).toEqual(['budget', 'estimator', 'producer'])
+	})
+
+	it('reads each declared property exactly once', () => {
+		const { budget } = createRecordingBudget<number>(10, selectCharge)
+		const { proxy, reads } = new ReadingProxy<MeterOptions<number>>({
+			budget,
+			estimator: selectLength,
+			producer: selectCharge,
+		})
+
+		const output = validateMeterOptions(proxy)
+
+		expect(output.estimator).toBe(selectLength)
+		expect(reads).toEqual(['budget', 'estimator', 'producer'])
+	})
+
+	it('contains a hostile getter and preserves its cause', () => {
+		const input = defineThrowingProperty(
+			{ estimator: selectLength, producer: selectCharge },
+			'budget',
+		)
+		const error = captureContractError(() =>
+			Reflect.apply(validateMeterOptions, undefined, [input]),
+		)
+
+		expect(error.code).toBe('bound')
+		expect(error.context).toEqual({
+			path: ['options'],
+			limit: 'readable plain record',
+			received: 'object',
+		})
+		expect(error.cause instanceof TypeError).toBe(true)
+	})
+
+	it('contains a revoked budget proxy as a placement refusal', () => {
+		const { budget } = createRecordingBudget<number>(10, selectCharge)
+		const revoked = Proxy.revocable(budget, {})
+		revoked.revoke()
+		const error = captureContractError(() =>
+			Reflect.apply(validateMeterOptions, undefined, [
+				{ budget: revoked.proxy, estimator: selectLength, producer: selectCharge },
+			]),
+		)
+
+		expect(error.code).toBe('placement')
+		expect(error.context).toEqual({
+			path: ['options', 'budget'],
+			limit: 'BudgetInterface',
+			received: 'object',
+		})
+	})
+
+	const { budget: held } = createRecordingBudget<number>(10, selectCharge)
+
+	it.each([
+		['options', null, 'bound', ['options'], 'plain record', preview(null)],
+		[
+			'budget',
+			{ budget: {}, estimator: selectLength, producer: selectCharge },
+			'placement',
+			['options', 'budget'],
+			'BudgetInterface',
+			'object',
+		],
+		[
+			'estimator',
+			{ budget: held, estimator: 1, producer: selectCharge },
+			'placement',
+			['options', 'estimator'],
+			'function',
+			'1',
+		],
+		[
+			'producer',
+			{ budget: held, estimator: selectLength, producer: 'x' },
+			'placement',
+			['options', 'producer'],
+			'function',
+			'"x"',
+		],
+	])(
+		'rejects invalid %s with exact contract context',
+		(_field, input, code, path, limit, received) => {
+			const error = captureContractError(() =>
+				Reflect.apply(validateMeterOptions, undefined, [input]),
+			)
+
+			expect(error.code).toBe(code)
+			expect(error.context).toEqual({ path, limit, received })
+		},
+	)
+
+	it('preserves the generic producer type', () => {
+		expectTypeOf(validateMeterOptions<number>).returns.toEqualTypeOf<MeterOptions<number>>()
+	})
+})
+
+describe('validateTokenMeterOptions', () => {
+	it('returns a fresh copy that keeps the budget and the estimator by identity', () => {
+		const budget = createTokenBudget({ max: 10 })
+		const input: TokenMeterOptions = { budget, estimator: selectLength }
+		const output = validateTokenMeterOptions(input)
+
+		expect(output).not.toBe(input)
+		expect(output.budget).toBe(budget)
+		expect(output.estimator).toBe(selectLength)
+		expect(Object.keys(output)).toEqual(['budget', 'estimator'])
+	})
+
+	it('reads each declared property exactly once', () => {
+		const { proxy, reads } = new ReadingProxy<TokenMeterOptions>({
+			budget: createTokenBudget({ max: 10 }),
+			estimator: selectLength,
+		})
+
+		const output = validateTokenMeterOptions(proxy)
+
+		expect(output.estimator).toBe(selectLength)
+		expect(reads).toEqual(['budget', 'estimator'])
+	})
+
+	it('contains a hostile getter and preserves its cause', () => {
+		const input = defineThrowingProperty({ estimator: selectLength }, 'budget')
+		const error = captureContractError(() =>
+			Reflect.apply(validateTokenMeterOptions, undefined, [input]),
+		)
+
+		expect(error.code).toBe('bound')
+		expect(error.context).toEqual({
+			path: ['options'],
+			limit: 'readable plain record',
+			received: 'object',
+		})
+		expect(error.cause instanceof TypeError).toBe(true)
+	})
+
+	it.each([
+		[
+			'options',
+			[],
+			'bound',
+			['options'],
+			'plain record',
+			preview([]),
+			'TokenMeter: options must be a plain record',
+		],
+		[
+			'budget',
+			{ budget: null, estimator: selectLength },
+			'placement',
+			['options', 'budget'],
+			'BudgetInterface',
+			'null',
+			'TokenMeter: budget must implement BudgetInterface',
+		],
+		[
+			'estimator',
+			{ budget: createTokenBudget({ max: 1 }), estimator: 2 },
+			'placement',
+			['options', 'estimator'],
+			'function',
+			'2',
+			'TokenMeter: estimator must be a function',
+		],
+	])(
+		'rejects invalid %s with exact contract context',
+		(_field, input, code, path, limit, received, message) => {
+			const error = captureContractError(() =>
+				Reflect.apply(validateTokenMeterOptions, undefined, [input]),
+			)
+
+			expect(error.code).toBe(code)
+			expect(error.message).toBe(message)
+			expect(error.context).toEqual({ path, limit, received })
+		},
+	)
+
+	it('preserves the token meter options type', () => {
+		expectTypeOf(validateTokenMeterOptions).returns.toEqualTypeOf<TokenMeterOptions>()
 	})
 })

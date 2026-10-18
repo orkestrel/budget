@@ -1,19 +1,24 @@
 import type {
 	BudgetInterface,
 	BudgetOptions,
+	MeterInterface,
 	TokenBudgetOptions,
+	TokenMeterOptions,
 	TokenScope,
 	TokenUsage,
 } from '@src/core'
-import { createBudget, createTokenBudget, createTokenConsumer } from '@src/core'
+import { createBudget, createTokenBudget, createTokenConsumer, createTokenMeter } from '@src/core'
 import { preview } from '@orkestrel/contract'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createRecorder } from '@orkestrel/test'
 import {
 	captureContractError,
+	createRecordingBudget,
 	createTokenUsage,
 	defineThrowingProperty,
 	selectCharge,
+	selectLength,
+	selectQuarterLength,
 } from '../../setup.js'
 
 describe('createBudget', () => {
@@ -265,6 +270,131 @@ describe('createTokenBudget', () => {
 	})
 })
 
+describe('createTokenMeter construction boundary', () => {
+	it.each([
+		['undefined', undefined],
+		['null', null],
+		['an array', []],
+	])('rejects %s options with exact bound context', (_label, value) => {
+		const error = captureContractError(() => Reflect.apply(createTokenMeter, undefined, [value]))
+
+		expect(error.code).toBe('bound')
+		expect(error.message).toBe('TokenMeter: options must be a plain record')
+		expect(error.context).toEqual({
+			path: ['options'],
+			limit: 'plain record',
+			received: preview(value),
+		})
+	})
+
+	it('contains unreadable options and preserves the cause', () => {
+		const options = defineThrowingProperty({ estimator: selectLength }, 'budget')
+		const error = captureContractError(() => Reflect.apply(createTokenMeter, undefined, [options]))
+
+		expect(error.code).toBe('bound')
+		expect(error.context).toEqual({
+			path: ['options'],
+			limit: 'readable plain record',
+			received: 'object',
+		})
+		expect(error.cause instanceof TypeError).toBe(true)
+	})
+
+	it.each([
+		['a plain object', { consume: selectCharge }],
+		['null', null],
+		['a number', 3],
+	])('rejects %s as the budget with exact placement context', (_label, budget) => {
+		const error = captureContractError(() =>
+			Reflect.apply(createTokenMeter, undefined, [{ budget, estimator: selectLength }]),
+		)
+
+		expect(error.code).toBe('placement')
+		expect(error.message).toBe('TokenMeter: budget must implement BudgetInterface')
+		expect(error.context).toEqual({
+			path: ['options', 'budget'],
+			limit: 'BudgetInterface',
+			received: preview(budget),
+		})
+	})
+
+	it('rejects a non-function estimator with exact placement context', () => {
+		const budget = createTokenBudget({ max: 10 })
+		const error = captureContractError(() =>
+			Reflect.apply(createTokenMeter, undefined, [{ budget, estimator: 'length' }]),
+		)
+
+		expect(error.code).toBe('placement')
+		expect(error.message).toBe('TokenMeter: estimator must be a function')
+		expect(error.context).toEqual({
+			path: ['options', 'estimator'],
+			limit: 'function',
+			received: '"length"',
+		})
+	})
+})
+
+describe('createTokenMeter', () => {
+	it('consumes each growth as completion tokens with a zero prompt', () => {
+		const { budget, charges } = createRecordingBudget<TokenUsage>(
+			1_000,
+			(usage) => usage.completion,
+		)
+		const meter = createTokenMeter({ budget, estimator: selectQuarterLength })
+
+		meter.charge('Once upon')
+		meter.charge(' a')
+		meter.charge(' time')
+
+		expect(charges.calls).toEqual([
+			[{ prompt: 0, completion: 3, total: 3 }],
+			[{ prompt: 0, completion: 1, total: 1 }],
+		])
+		expect(meter.charged).toBe(4)
+	})
+
+	it.each([
+		['completion', 4],
+		['total', 4],
+		['prompt', 0],
+	] satisfies ReadonlyArray<readonly [TokenScope, number]>)(
+		'charges a %s-scoped budget the amount its scope selects',
+		(scope, expected) => {
+			const budget = createTokenBudget({ max: 1_000, scope })
+			const meter = createTokenMeter({ budget, estimator: selectQuarterLength })
+
+			meter.charge('Once upon')
+			meter.charge(' a time')
+
+			expect(budget.consumed).toBe(expected)
+			expect(meter.charged).toBe(4)
+		},
+	)
+
+	it('trips a completion-scoped budget before any provider usage is reported', () => {
+		const budget = createTokenBudget({ max: 3, scope: 'completion' })
+		const meter = createTokenMeter({ budget, estimator: selectQuarterLength })
+
+		meter.charge('Once')
+		expect(budget.signal.aborted).toBe(false)
+		meter.charge(' upon')
+
+		expect(budget.signal.aborted).toBe(true)
+		expect(budget.consumed).toBe(3)
+	})
+
+	it('refuses a non-string delta with the meter literal error', () => {
+		const meter = createTokenMeter({
+			budget: createTokenBudget({ max: 10 }),
+			estimator: selectLength,
+		})
+		const error = captureContractError(() => Reflect.apply(meter.charge, meter, [42]))
+
+		expect(error.code).toBe('literal')
+		expect(error.context).toEqual({ path: ['delta'], limit: 'string', received: '42' })
+	})
+})
+
 describe('factory types', () => {
 	it('preserves generic budget and token contracts', () => {
 		expectTypeOf<BudgetOptions<number>['consumer']>().toEqualTypeOf<(value: number) => number>()
@@ -279,5 +409,7 @@ describe('factory types', () => {
 		}>()
 		expectTypeOf(createTokenBudget).parameter(0).toEqualTypeOf<TokenBudgetOptions>()
 		expectTypeOf(createTokenBudget({ max: 1 })).toEqualTypeOf<BudgetInterface<TokenUsage>>()
+		expectTypeOf(createTokenMeter).parameter(0).toEqualTypeOf<TokenMeterOptions>()
+		expectTypeOf(createTokenMeter).returns.toEqualTypeOf<MeterInterface>()
 	})
 })

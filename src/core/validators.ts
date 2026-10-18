@@ -1,5 +1,13 @@
-import type { TokenScope, TokenUsage } from './types.js'
-import { holds, isBoolean, isFiniteNumber, isFunction, isRecord } from '@orkestrel/contract'
+import type { BudgetInterface, TokenScope, TokenUsage } from './types.js'
+import {
+	holds,
+	isBoolean,
+	isFiniteNumber,
+	isFunction,
+	isObject,
+	isRecord,
+	isString,
+} from '@orkestrel/contract'
 
 /**
  * Determines whether a value is a finite nonnegative budget amount.
@@ -36,6 +44,43 @@ export function isBudgetSignal(value: unknown): value is AbortSignal {
 		if (!isFunction(getter)) return false
 		return isBoolean(Reflect.apply(getter, value, []))
 	})
+}
+
+/**
+ * Determines whether a value implements `BudgetInterface`, returning `false`
+ * rather than throwing on hostile input.
+ *
+ * @remarks
+ * Reads each member once inside a contained boundary: a string `id`, a native
+ * `signal`, finite nonnegative `max`, `consumed`, and `remaining`, a boolean
+ * `exhausted`, and callable `start`, `consume`, and `clear`. A class instance
+ * passes; the guard checks the published contract and no more. It cannot verify
+ * the reason a candidate's `signal` aborts with, so a candidate that aborts with
+ * another reason than a `BudgetError` passes.
+ *
+ * @param value - Unknown budget candidate
+ * @returns True if the value carries every `BudgetInterface` member; false otherwise
+ *
+ * @example
+ * ```ts
+ * isBudget(createBudget<number>({ max: 10, consumer: (value) => value })) // true
+ * isBudget({ consume: () => undefined }) // false
+ * ```
+ */
+export function isBudget(value: unknown): value is BudgetInterface<unknown> {
+	if (!isObject(value)) return false
+	return holds(
+		() =>
+			isString(Reflect.get(value, 'id')) &&
+			isBudgetSignal(Reflect.get(value, 'signal')) &&
+			isBudgetAmount(Reflect.get(value, 'max')) &&
+			isBudgetAmount(Reflect.get(value, 'consumed')) &&
+			isBudgetAmount(Reflect.get(value, 'remaining')) &&
+			isBoolean(Reflect.get(value, 'exhausted')) &&
+			isFunction(Reflect.get(value, 'start')) &&
+			isFunction(Reflect.get(value, 'consume')) &&
+			isFunction(Reflect.get(value, 'clear')),
+	)
 }
 
 /**
