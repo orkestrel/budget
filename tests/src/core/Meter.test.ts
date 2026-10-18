@@ -1,9 +1,10 @@
 import type { MeterInterface, MeterOptions } from '@src/core'
-import { Meter } from '@src/core'
+import { BudgetError, Meter } from '@src/core'
 import { preview } from '@orkestrel/contract'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { captureError, createRecorder } from '@orkestrel/test'
 import {
+	CallCounter,
 	ReadingProxy,
 	captureContractError,
 	createRecordingBudget,
@@ -470,13 +471,12 @@ describe('Meter re-entry', () => {
 			[3, 1e16 + 2],
 		])
 		const { budget } = createRecordingBudget<number>(Number.MAX_VALUE, selectCharge)
-		const depths = createRecorder<readonly [number]>()
+		const depths = new CallCounter()
 		const meter = new Meter<number>({
 			budget,
 			estimator: (text) => estimates.get(text.length) ?? 0,
 			producer: (growth) => {
-				depths.handler(growth)
-				const depth = depths.count
+				const depth = depths.next()
 				if (depth === 1) captureError(() => meter.charge('b'))
 				if (depth === 2) {
 					meter.charge('c')
@@ -574,8 +574,8 @@ describe('Meter re-entry', () => {
 describe('Meter budget signal', () => {
 	it('trips the budget signal once, at the charge that reaches the ceiling', () => {
 		const { budget } = createRecordingBudget<number>(3, selectCharge)
-		const fired = createRecorder<readonly []>()
-		budget.signal.addEventListener('abort', fired.handler)
+		const fired = createRecorder<readonly [unknown]>()
+		budget.signal.addEventListener('abort', () => fired.handler(budget.signal.reason))
 		const meter = new Meter<number>({ budget, estimator: selectLength, producer: selectCharge })
 
 		meter.charge('ab')
@@ -583,7 +583,7 @@ describe('Meter budget signal', () => {
 		meter.charge('cd')
 		meter.charge('ef')
 
-		expect(fired.count).toBe(1)
+		expect(fired.calls).toEqual([[new BudgetError({ id: budget.id, max: 3, consumed: 4 })]])
 		expect(requireBudgetError(budget.signal.reason).context).toEqual({
 			id: budget.id,
 			max: 3,

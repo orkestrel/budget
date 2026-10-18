@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { ContractError } from '@orkestrel/contract'
 import { BudgetError, isBudget } from '@src/core'
 import {
+	CallCounter,
 	ReadingProxy,
 	captureContractError,
 	createBudgetCandidate,
@@ -105,6 +106,30 @@ describe('ReadingProxy', () => {
 		// The log is the same live array the proxy appends to, so a read that happens after
 		// the entity was destructured is still visible here.
 		expect(reads).toEqual(['scope', 'max'])
+	})
+})
+
+describe('CallCounter', () => {
+	it('numbers each call from one and counts them', () => {
+		const calls = new CallCounter()
+
+		expect(calls.count).toBe(0)
+		expect(calls.next()).toBe(1)
+		expect(calls.next()).toBe(2)
+		expect(calls.next()).toBe(3)
+		expect(calls.count).toBe(3)
+	})
+
+	it('keeps an independent count for every counter', () => {
+		const first = new CallCounter()
+		const second = new CallCounter()
+
+		first.next()
+		first.next()
+
+		expect(first.count).toBe(2)
+		expect(second.count).toBe(0)
+		expect(second.next()).toBe(1)
 	})
 })
 

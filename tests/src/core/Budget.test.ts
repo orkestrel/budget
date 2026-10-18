@@ -155,8 +155,8 @@ describe('Budget consumption', () => {
 
 	it('trips exactly once at the ceiling and permits valid overshoot', () => {
 		const budget = new Budget<number>({ max: 10, consumer: selectCharge })
-		const fired = createRecorder<readonly []>()
-		budget.signal.addEventListener('abort', fired.handler)
+		const fired = createRecorder<readonly [unknown]>()
+		budget.signal.addEventListener('abort', () => fired.handler(budget.signal.reason))
 
 		budget.consume(9)
 		expect(budget.signal.aborted).toBe(false)
@@ -166,7 +166,7 @@ describe('Budget consumption', () => {
 		expect(budget.consumed).toBe(16)
 		expect(budget.remaining).toBe(0)
 		expect(budget.exhausted).toBe(true)
-		expect(fired.count).toBe(1)
+		expect(fired.calls).toEqual([[new BudgetError({ id: budget.id, max: 10, consumed: 11 })]])
 	})
 
 	it.each([
@@ -244,15 +244,15 @@ describe('Budget lifecycle', () => {
 	it('supports consume before start on the construction signal', () => {
 		const budget = new Budget<number>({ max: 10, consumer: selectCharge })
 		const signal = budget.signal
-		const fired = createRecorder<readonly []>()
-		signal.addEventListener('abort', fired.handler)
+		const fired = createRecorder<readonly [unknown]>()
+		signal.addEventListener('abort', () => fired.handler(signal.reason))
 
 		budget.consume(10)
 
 		expect(budget.signal).toBe(signal)
 		expect(budget.consumed).toBe(10)
 		expect(budget.exhausted).toBe(true)
-		expect(fired.count).toBe(1)
+		expect(fired.calls).toEqual([[new BudgetError({ id: budget.id, max: 10, consumed: 10 })]])
 	})
 
 	it('start re-arms without resetting cumulative consumption', () => {

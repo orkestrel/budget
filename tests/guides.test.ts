@@ -44,7 +44,8 @@ await new GuideCommand({
 	const { isRecord, parseJSON } = await import('@orkestrel/contract')
 	const { computeSymbolKey, findMissingSymbols } = await import('@orkestrel/guide')
 	const { createRecorder, requireValue } = await import('@orkestrel/test')
-	const { createBudget, createTokenBudget, createTokenMeter } = await import('@src/core')
+	const { BudgetError, createBudget, createTokenBudget, createTokenMeter } =
+		await import('@src/core')
 	const { createTokenUsage, requireBudgetError } = await import('./setup.js')
 	const { describe, expect, it } = await import('vitest')
 	const manifest = parseJSON(requireValue(files['package.json'], 'Missing inventory: package.json'))
@@ -168,19 +169,21 @@ await new GuideCommand({
 
 		it('charges the Surface fence and fires the signal exactly once at the ceiling', () => {
 			// Transcribed from the Surface fence. The listener stands in for the fence's
-			// `stop()` so the "fires when exhausted" comment is a counted call, not a name.
+			// `stop()` so the "fires when exhausted" comment is a recorded abort reason, not a name.
 			const budget = createBudget<number>({ max: 10_000, consumer: (cost) => cost })
-			const fired = createRecorder<readonly []>()
+			const fired = createRecorder<readonly [unknown]>()
 			budget.start()
-			budget.signal.addEventListener('abort', fired.handler)
+			budget.signal.addEventListener('abort', () => fired.handler(budget.signal.reason))
 
 			budget.consume(4_000)
 			expect(budget.remaining).toBe(6_000)
-			expect(fired.count).toBe(0)
+			expect(fired.calls).toEqual([])
 
 			budget.consume(7_000)
 			expect(budget.signal.aborted).toBe(true)
-			expect(fired.count).toBe(1)
+			expect(fired.calls).toEqual([
+				[new BudgetError({ id: budget.id, max: 10_000, consumed: 11_000 })],
+			])
 		})
 
 		it('carries the Surface fence lines the transcription copies', () => {
@@ -198,9 +201,11 @@ await new GuideCommand({
 			// list of byte lengths in place of the fence's stream. Each chunk is 400_000 bytes; the
 			// tally crosses 1_000_000 at 1_200_000, and the bound refuses the chunk that would follow.
 			const budget = createBudget<number>({ max: 1_000_000, consumer: (bytes) => bytes })
-			const fired = createRecorder<readonly []>()
+			const fired = createRecorder<readonly [unknown]>()
 			budget.start()
-			budget.signal.addEventListener('abort', fired.handler, { once: true })
+			budget.signal.addEventListener('abort', () => fired.handler(budget.signal.reason), {
+				once: true,
+			})
 			const chunks: readonly number[] = [400_000, 400_000, 400_000, 400_000]
 			const processed = createRecorder<readonly [number]>()
 
@@ -212,7 +217,9 @@ await new GuideCommand({
 
 			expect(processed.calls).toEqual([[400_000], [400_000], [400_000]])
 			expect(budget.consumed).toBe(1_200_000)
-			expect(fired.count).toBe(1)
+			expect(fired.calls).toEqual([
+				[new BudgetError({ id: budget.id, max: 1_000_000, consumed: 1_200_000 })],
+			])
 		})
 
 		it('carries the stream fence lines the transcription copies', () => {

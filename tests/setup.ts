@@ -96,6 +96,37 @@ export class ReadingProxy<T extends object> {
 }
 
 /**
+ * Counts the calls made through it and numbers each one, so a fixture that branches on which
+ * call it is reads the number it was handed.
+ *
+ * @remarks
+ * The count is a `#` field of this entity. It lives here rather than in a recorder because a
+ * recorder whose only read is its count records nothing a test reads.
+ *
+ * @example
+ * ```ts
+ * const calls = new CallCounter()
+ * calls.next() // 1
+ * calls.next() // 2
+ * calls.count // 2
+ * ```
+ */
+export class CallCounter {
+	#count = 0
+
+	/** Holds how many calls have been numbered. */
+	get count(): number {
+		return this.#count
+	}
+
+	/** Numbers the next call, starting at one, and returns that number. */
+	next(): number {
+		this.#count += 1
+		return this.#count
+	}
+}
+
+/**
  * Defines, in place on the target it receives, a property whose every read throws.
  *
  * @remarks

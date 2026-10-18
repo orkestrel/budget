@@ -7,7 +7,13 @@ import type {
 	TokenScope,
 	TokenUsage,
 } from '@src/core'
-import { createBudget, createTokenBudget, createTokenConsumer, createTokenMeter } from '@src/core'
+import {
+	BudgetError,
+	createBudget,
+	createTokenBudget,
+	createTokenConsumer,
+	createTokenMeter,
+} from '@src/core'
 import { preview } from '@orkestrel/contract'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { createRecorder } from '@orkestrel/test'
@@ -24,8 +30,8 @@ import {
 describe('createBudget', () => {
 	it('returns a working BudgetInterface', () => {
 		const budget = createBudget<number>({ max: 100, consumer: selectCharge })
-		const fired = createRecorder<readonly []>()
-		budget.signal.addEventListener('abort', fired.handler)
+		const fired = createRecorder<readonly [unknown]>()
+		budget.signal.addEventListener('abort', () => fired.handler(budget.signal.reason))
 
 		budget.consume(60)
 		budget.consume(40)
@@ -35,7 +41,7 @@ describe('createBudget', () => {
 		expect(budget.remaining).toBe(0)
 		expect(budget.exhausted).toBe(true)
 		expect(budget.signal.aborted).toBe(true)
-		expect(fired.count).toBe(1)
+		expect(fired.calls).toEqual([[new BudgetError({ id: budget.id, max: 100, consumed: 100 })]])
 	})
 
 	it('passes identity and parent options through the validated constructor', () => {
