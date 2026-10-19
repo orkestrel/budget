@@ -487,19 +487,6 @@ describe('Budget exhaustion reason', () => {
 		expect(bound.reason).toBe(budget.signal.reason)
 		expect(isBudgetError(bound.reason)).toBe(true)
 	})
-
-	it('narrows only a BudgetError with isBudgetError', () => {
-		const lookalike = Object.assign(new Error('budget reached its ceiling'), { code: 'exhaust' })
-		const revoked = Proxy.revocable(new BudgetError({ id: 'a', max: 1, consumed: 1 }), {})
-		revoked.revoke()
-
-		expect(isBudgetError(new BudgetError({ id: 'a', max: 1, consumed: 1 }))).toBe(true)
-		expect(isBudgetError(new DOMException('aborted', 'AbortError'))).toBe(false)
-		expect(isBudgetError(lookalike)).toBe(false)
-		expect(isBudgetError(null)).toBe(false)
-		expect(isBudgetError(undefined)).toBe(false)
-		expect(isBudgetError(revoked.proxy)).toBe(false)
-	})
 })
 
 describe('Budget type shape', () => {

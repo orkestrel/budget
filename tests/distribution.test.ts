@@ -1,9 +1,9 @@
 // The artifact a consumer installs, measured rather than described. This workspace
 // is packed and installed into a throwaway consumer, and every following claim is read
 // off that installed tree: the exports map it publishes, the declarations it ships,
-// and the module objects a real runtime hands a consumer. Nothing here names this
-// package, one of its exports, or how many there are, so the proof stays true as
-// the published surface moves.
+// and the module objects a real runtime hands a consumer. Apart from the closing
+// recognition case, nothing here names this package, one of its exports, or how many
+// there are, so the proof stays true as the published surface moves.
 import type { SpawnSyncReturns } from 'node:child_process'
 import type { TestContext } from 'vitest'
 import { isArray, isObject, isString } from '@orkestrel/contract'
@@ -23,6 +23,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, parse, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
+import { RECOGNITION_DRIVER, RECOGNITION_DRIVER_SOURCE } from './setupServer.js'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm'
@@ -64,7 +65,6 @@ process.stdout.write(JSON.stringify(Object.keys(entry).sort()))
 const CJS_DRIVER_SOURCE = `const entry = require(process.argv[2])
 process.stdout.write(JSON.stringify(Object.keys(entry).sort()))
 `
-
 // The extensions a JavaScript handler loads as modules. Node loads a native addon
 // through its addon handler instead, so that extension is named separately.
 const MODULE_EXTENSIONS = ['.js', '.mjs', '.cjs']
@@ -968,3 +968,23 @@ for (const entry of STAGE?.entries ?? []) {
 		)
 	})
 }
+
+describe('installed budget error recognition', () => {
+	it('recognizes a reason built by the other module format, both ways [requires the registry]', (context) => {
+		const stage = requireStage(context)
+		const name = readManifestName(join(stage.installed, 'package.json'))
+		writeFile(join(stage.consumer, RECOGNITION_DRIVER), RECOGNITION_DRIVER_SOURCE)
+		const result = runNode([join(stage.consumer, RECOGNITION_DRIVER), name], stage.consumer)
+		if (result.status !== 0) throw new Error(`The recognition driver failed: ${readOutput(result)}`)
+		expect(JSON.parse(result.stdout)).toStrictEqual({
+			distinct: true,
+			importOwn: true,
+			requireOwn: true,
+			importOnRequire: true,
+			requireOnImport: true,
+			importLookalike: false,
+			requireLookalike: false,
+			context: { id: 'import', max: 1, consumed: 2 },
+		})
+	})
+})

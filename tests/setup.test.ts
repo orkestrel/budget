@@ -4,11 +4,14 @@
 // it charges — is proven by the suites under `tests/src/core/`, never re-proven here.
 
 import { describe, expect, it } from 'vitest'
-import { ContractError } from '@orkestrel/contract'
-import { BudgetError, isBudget } from '@src/core'
+import { ContractError, isObject } from '@orkestrel/contract'
+import { BUDGET_ERROR_BRAND, BudgetError, isBudget } from '@src/core'
 import {
 	CallCounter,
 	ReadingProxy,
+	BUDGET_ERROR_CONTEXT_SHAPES,
+	buildBudgetErrorForgery,
+	buildBudgetErrorHostileValues,
 	captureContractError,
 	createBudgetCandidate,
 	createRecordingBudget,
@@ -204,6 +207,101 @@ describe('requireBudgetError', () => {
 			'Expected a BudgetError',
 		)
 		expect(() => requireBudgetError(undefined)).toThrow('Expected a BudgetError')
+	})
+})
+
+describe('buildBudgetErrorForgery', () => {
+	it('sets the name, the code, and the context a BudgetError carries', () => {
+		const forgery = buildBudgetErrorForgery(true)
+
+		expect(forgery.message).toBe('budget reached its ceiling')
+		expect(forgery.name).toBe('BudgetError')
+		expect(Reflect.get(forgery, 'code')).toBe('exhaust')
+		expect(Reflect.get(forgery, 'context')).toStrictEqual({ id: 'forged', max: 1, consumed: 1 })
+	})
+
+	it('takes an Error subclass prototype for true and the Error prototype for false', () => {
+		const subclassed = buildBudgetErrorForgery(true)
+		const plain = buildBudgetErrorForgery(false)
+
+		expect(subclassed instanceof Error).toBe(true)
+		expect(Object.getPrototypeOf(subclassed)).not.toBe(Error.prototype)
+		expect(Object.getPrototypeOf(Object.getPrototypeOf(subclassed))).toBe(Error.prototype)
+		expect(Object.getPrototypeOf(plain)).toBe(Error.prototype)
+	})
+
+	it('stamps nothing without a brand and stores what the brand callback returns', () => {
+		const other = new BudgetError({ id: 'other', max: 1, consumed: 1 })
+		const unbranded = buildBudgetErrorForgery(true)
+		const foreign = buildBudgetErrorForgery(true, () => other)
+		const own = buildBudgetErrorForgery(true, (forgery) => forgery)
+
+		expect(Object.getOwnPropertyDescriptor(unbranded, BUDGET_ERROR_BRAND)).toBeUndefined()
+		expect(Object.getOwnPropertyDescriptor(foreign, BUDGET_ERROR_BRAND)?.value).toBe(other)
+		expect(Object.getOwnPropertyDescriptor(own, BUDGET_ERROR_BRAND)?.value).toBe(own)
+	})
+})
+
+describe('BUDGET_ERROR_CONTEXT_SHAPES', () => {
+	it('preserves every off-shape context and freezes shared records', () => {
+		expect(BUDGET_ERROR_CONTEXT_SHAPES).toStrictEqual([
+			undefined,
+			null,
+			'tokens',
+			{ id: 7, max: 1, consumed: 1 },
+			{ id: 'tokens', max: '1', consumed: 1 },
+			{ id: 'tokens', max: 1 },
+		])
+		expect(Object.isFrozen(BUDGET_ERROR_CONTEXT_SHAPES)).toBe(true)
+		for (const context of BUDGET_ERROR_CONTEXT_SHAPES.filter(isObject)) {
+			expect(Object.isFrozen(context)).toBe(true)
+		}
+	})
+})
+
+describe('buildBudgetErrorHostileValues', () => {
+	it('preserves primitive controls and supplies a revoked proxy and self-branded throwing accessors', () => {
+		const values = buildBudgetErrorHostileValues()
+		const [absent, missing, text, zero, symbol, revoked, context, name] = values
+
+		expect(values).toHaveLength(8)
+		expect(Object.isFrozen(values)).toBe(true)
+		expect(absent).toBeNull()
+		expect(missing).toBeUndefined()
+		expect(text).toBe('BudgetError')
+		expect(zero).toBe(0)
+		expect(typeof symbol).toBe('symbol')
+		expect(String(symbol)).toBe('Symbol(budget)')
+		if (!isObject(revoked)) throw new Error('Expected a revoked proxy')
+		expect(() => Reflect.getPrototypeOf(revoked)).toThrow(TypeError)
+		if (!(context instanceof Error) || !(name instanceof Error)) {
+			throw new Error('Expected hostile Error instances')
+		}
+		expect(Object.getOwnPropertyDescriptor(context, BUDGET_ERROR_BRAND)?.value).toBe(context)
+		expect(Object.getOwnPropertyDescriptor(name, BUDGET_ERROR_BRAND)?.value).toBe(name)
+		expect(context.name).toBe('BudgetError')
+		expect(Reflect.get(name, 'context')).toStrictEqual({ id: 'forged', max: 1, consumed: 1 })
+		expect(() => Reflect.get(context, 'context')).toThrow('hostile context')
+		expect(() => Reflect.get(name, 'name')).toThrow('hostile name')
+	})
+
+	it('allocates fresh revoked proxies, errors, and throwing accessors for each call', () => {
+		const first = buildBudgetErrorHostileValues()
+		const second = buildBudgetErrorHostileValues()
+
+		expect(Object.is(first, second)).toBe(false)
+		for (const [index, value] of first.entries()) {
+			if (index < 4) continue
+			expect(Object.is(value, second[index])).toBe(false)
+			if (index < 6 || !isObject(value)) continue
+			const other = second[index]
+			if (!isObject(other)) throw new Error('Expected a fresh hostile error')
+			const property = index === 6 ? 'context' : 'name'
+			expect(Object.getOwnPropertyDescriptor(value, property)?.get).not.toBe(
+				Object.getOwnPropertyDescriptor(other, property)?.get,
+			)
+			expect(() => Reflect.get(other, property)).toThrow(`hostile ${property}`)
+		}
 	})
 })
 

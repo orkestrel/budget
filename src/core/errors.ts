@@ -1,5 +1,6 @@
 import type { BudgetErrorContext } from './types.js'
-import { isInstance } from '@orkestrel/contract'
+import { holds, INTRINSICS, isNumber, isObject, isString } from '@orkestrel/contract'
+import { BUDGET_ERROR_BRAND } from './constants.js'
 
 /**
  * Reports a budget whose cumulative tally reached its ceiling — the abort reason of the budget's
@@ -11,7 +12,8 @@ import { isInstance } from '@orkestrel/contract'
  * a budget already at its ceiling; a parent signal's abort keeps the parent's own reason. The
  * reason reaches every `AbortSignal.any` composition unchanged, so a consumer narrows it with
  * {@link isBudgetError} wherever the bound is observed. The message is fixed; the readings are in
- * `context`.
+ * `context`. The constructor stamps {@link BUDGET_ERROR_BRAND} with the error itself, which
+ * {@link isBudgetError} reads to recognize an error built by another copy of this package.
  *
  * @example Trace an exhaustion
  * ```ts
@@ -36,17 +38,29 @@ export class BudgetError extends Error {
 	 */
 	constructor(context: BudgetErrorContext) {
 		super('budget reached its ceiling')
+		INTRINSICS.define(this, BUDGET_ERROR_BRAND, { value: this, configurable: true })
 		this.name = 'BudgetError'
 		this.context = context
 	}
 }
 
 /**
- * Narrows an unknown value to a {@link BudgetError} through `instanceof`, so an abort reason can
- * be read as a budget's exhaustion.
+ * Checks whether an unknown value is a {@link BudgetError} built by any copy of this package, so an
+ * abort reason can be read as a budget's exhaustion.
+ *
+ * @remarks
+ * Recognition requires the native `Error` base, a prototype other than `Error.prototype`, an own
+ * {@link BUDGET_ERROR_BRAND} descriptor whose value is the error itself, the name `BudgetError`, the
+ * code `'exhaust'`, and a `context` holding a string `id` and number `max` and `consumed`. The
+ * registry-global key makes recognition work across duplicate installations and across the ESM and
+ * CommonJS entries, in both directions. The brand check compares identity, so a transparent proxy is
+ * refused: its forwarded descriptor stores the target, not the proxy. An unbranded `Error` carrying
+ * `code: 'exhaust'`, and an error from a copy that stamps no brand, such as 0.0.13, stay outside the
+ * type. The brand is a recognition marker, not proof of origin: a complete forgery that stamps its
+ * own identity under the key passes. Hostile or revoked input returns `false` instead of throwing.
  *
  * @param value - The value to test (typically a `signal.reason`)
- * @returns True if `value` is a `BudgetError`; false otherwise
+ * @returns True if `value` is a `BudgetError` from any copy of this package; false otherwise
  *
  * @example
  * ```ts
@@ -55,5 +69,19 @@ export class BudgetError extends Error {
  * ```
  */
 export function isBudgetError(value: unknown): value is BudgetError {
-	return isInstance(value, BudgetError)
+	if (!isObject(value)) return false
+	return holds(() => {
+		if (!(value instanceof INTRINSICS.error)) return false
+		if (INTRINSICS.prototype(value) === INTRINSICS.error.prototype) return false
+		if (INTRINSICS.describe(value, BUDGET_ERROR_BRAND)?.value !== value) return false
+		if (value.name !== 'BudgetError') return false
+		if (INTRINSICS.reflect.read(value, 'code') !== 'exhaust') return false
+		const context: unknown = INTRINSICS.reflect.read(value, 'context')
+		return (
+			isObject(context) &&
+			isString(INTRINSICS.reflect.read(context, 'id')) &&
+			isNumber(INTRINSICS.reflect.read(context, 'max')) &&
+			isNumber(INTRINSICS.reflect.read(context, 'consumed'))
+		)
+	})
 }

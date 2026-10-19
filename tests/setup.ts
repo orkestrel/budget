@@ -1,9 +1,19 @@
 import type { ContractError } from '@orkestrel/contract'
 import type { RecorderInterface } from '@orkestrel/test'
-import type { BudgetError, BudgetInterface, TokenUsage } from '@src/core'
+import type { BudgetInterface, TokenUsage } from '@src/core'
 import { isContractError } from '@orkestrel/contract'
 import { captureError, createRecorder } from '@orkestrel/test'
-import { createBudget, isBudgetError } from '@src/core'
+import { BUDGET_ERROR_BRAND, BudgetError, createBudget, isBudgetError } from '@src/core'
+
+/** Holds off-shape contexts used to challenge branded budget errors. */
+export const BUDGET_ERROR_CONTEXT_SHAPES: readonly unknown[] = Object.freeze([
+	undefined,
+	null,
+	'tokens',
+	Object.freeze({ id: 7, max: 1, consumed: 1 }),
+	Object.freeze({ id: 'tokens', max: '1', consumed: 1 }),
+	Object.freeze({ id: 'tokens', max: 1 }),
+])
 
 /**
  * Captures and narrows a contract error thrown by an operation.
@@ -254,4 +264,80 @@ export function createBudgetCandidate(
 export function requireBudgetError(value: unknown): BudgetError {
 	if (!isBudgetError(value)) throw new Error('Expected a BudgetError')
 	return value
+}
+
+/**
+ * Builds an error carrying every `BudgetError` property but built by no budget code, branded as the
+ * caller chooses.
+ *
+ * @param subclass - If `true`, the error's prototype is an anonymous `Error` subclass; if `false`, it is `Error.prototype`
+ * @param brand - Returns the value stored under `BUDGET_ERROR_BRAND`; omit it for an unbranded error
+ * @returns An error named `BudgetError` with code `'exhaust'` and context `{ id: 'forged', max: 1, consumed: 1 }`
+ *
+ * @example
+ * ```ts
+ * buildBudgetErrorForgery(true, (forgery) => forgery) // a complete self-branded forgery
+ * ```
+ */
+export function buildBudgetErrorForgery(
+	subclass: boolean,
+	brand?: (forgery: Error) => unknown,
+): Error {
+	const forgery: Error = subclass
+		? Reflect.construct(Error, ['budget reached its ceiling'], class extends Error {})
+		: new Error('budget reached its ceiling')
+	Reflect.set(forgery, 'name', 'BudgetError')
+	Reflect.set(forgery, 'code', 'exhaust')
+	Reflect.set(forgery, 'context', { id: 'forged', max: 1, consumed: 1 })
+	if (brand !== undefined) {
+		Object.defineProperty(forgery, BUDGET_ERROR_BRAND, {
+			value: brand(forgery),
+			configurable: true,
+		})
+	}
+	return forgery
+}
+
+/**
+ * Builds fresh primitive, revoked, and self-branded hostile budget error candidates.
+ *
+ * @returns The primitive controls, a revoked proxy, and errors with throwing context and name accessors
+ * @remarks The branded accessors reach the guard's field checks rather than failing at the brand.
+ *
+ * @example
+ * ```ts
+ * const values = buildBudgetErrorHostileValues()
+ * ```
+ */
+export function buildBudgetErrorHostileValues(): readonly unknown[] {
+	const revoked = Proxy.revocable(new BudgetError({ id: 'a', max: 1, consumed: 1 }), {})
+	revoked.revoke()
+	const hostileContext = Object.defineProperty(
+		buildBudgetErrorForgery(true, (forgery) => forgery),
+		'context',
+		{
+			get: () => {
+				throw new Error('hostile context')
+			},
+		},
+	)
+	const hostileName = Object.defineProperty(
+		buildBudgetErrorForgery(true, (forgery) => forgery),
+		'name',
+		{
+			get: () => {
+				throw new Error('hostile name')
+			},
+		},
+	)
+	return Object.freeze([
+		null,
+		undefined,
+		'BudgetError',
+		0,
+		Symbol('budget'),
+		revoked.proxy,
+		hostileContext,
+		hostileName,
+	])
 }
