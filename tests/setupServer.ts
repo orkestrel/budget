@@ -49,6 +49,7 @@ process.stdout.write(
 		importLookalike: imported.isBudgetError(lookalike),
 		requireLookalike: required.isBudgetError(lookalike),
 		copyDistinct: imported.BudgetError !== second.BudgetError,
+		requireCopyDistinct: required.BudgetError !== second.BudgetError,
 		importOnCopy: imported.isBudgetError(fromCopy),
 		copyOnImport: second.isBudgetError(fromImport),
 		subclass: [imported, required, second].every((entry) => entry.isBudgetError(subclass)),

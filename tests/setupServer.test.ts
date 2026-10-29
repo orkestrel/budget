@@ -58,6 +58,7 @@ describe('recognition driver fixture', () => {
 				'importOwn',
 				'plain',
 				'proxy',
+				'requireCopyDistinct',
 				'requireLookalike',
 				'requireOnImport',
 				'requireOwn',

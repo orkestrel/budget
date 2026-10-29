@@ -988,6 +988,7 @@ describe('installed budget error recognition', () => {
 			importLookalike: false,
 			requireLookalike: false,
 			copyDistinct: true,
+			requireCopyDistinct: true,
 			importOnCopy: true,
 			copyOnImport: true,
 			subclass: true,
