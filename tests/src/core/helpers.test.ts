@@ -1,4 +1,4 @@
-﻿import type { BudgetOptions, MeterOptions, TokenBudgetOptions, TokenMeterOptions } from '@src/core'
+import type { BudgetOptions, MeterOptions, TokenBudgetOptions, TokenMeterOptions } from '@src/core'
 import {
 	createTokenBudget,
 	validateBudgetOptions,
