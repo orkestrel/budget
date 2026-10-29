@@ -1,3 +1,4 @@
+import type { BudgetErrorContext } from '@src/core'
 import { isConstructor, isFunction, isRecord } from '@orkestrel/contract'
 import { BUDGET_ERROR_BRAND, BudgetError, isBudgetError } from '@src/core'
 import { describe, expect, it } from 'vitest'
@@ -8,6 +9,24 @@ import {
 } from '../../setup.js'
 
 describe('budget error brand', () => {
+	it('accepts a class-instance context', () => {
+		class Context {
+			readonly [key: string]: unknown
+			readonly id = 'tokens'
+			readonly max = 1
+			readonly consumed = 2
+		}
+
+		const context: BudgetErrorContext = new Context()
+		expect(isBudgetError(new BudgetError(context))).toBe(true)
+	})
+
+	it('accepts a callable context', () => {
+		const members: BudgetErrorContext = { id: 'tokens', max: 1, consumed: 2 }
+		const context = Object.assign(() => undefined, members)
+		expect(isBudgetError(new BudgetError(context))).toBe(true)
+	})
+
 	it('recognizes a BudgetError built by the same copy', () => {
 		expect(isBudgetError(new BudgetError({ id: 'tokens', max: 10, consumed: 12 }))).toBe(true)
 	})

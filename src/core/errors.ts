@@ -1,5 +1,5 @@
 import type { BudgetErrorContext } from './types.js'
-import { holds, INTRINSICS, isNumber, isObject, isString } from '@orkestrel/contract'
+import { holds, INTRINSICS, isFunction, isNumber, isObject, isString } from '@orkestrel/contract'
 import { BUDGET_ERROR_BRAND } from './constants.js'
 
 /**
@@ -78,7 +78,7 @@ export function isBudgetError(value: unknown): value is BudgetError {
 		if (INTRINSICS.reflect.read(value, 'code') !== 'exhaust') return false
 		const context: unknown = INTRINSICS.reflect.read(value, 'context')
 		return (
-			isObject(context) &&
+			(isObject(context) || isFunction(context)) &&
 			isString(INTRINSICS.reflect.read(context, 'id')) &&
 			isNumber(INTRINSICS.reflect.read(context, 'max')) &&
 			isNumber(INTRINSICS.reflect.read(context, 'consumed'))
