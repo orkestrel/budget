@@ -1,6 +1,8 @@
 import { isRecord } from '@orkestrel/contract'
 import { createScratch } from '@orkestrel/test/server'
 import { spawnSync } from 'node:child_process'
+import { readdirSync, readFileSync } from 'node:fs'
+import { stripTypeScriptTypes } from 'node:module'
 import { basename, extname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -11,7 +13,26 @@ describe('recognition driver fixture', () => {
 		const scratch = createScratch({ prefix: 'budget-recognition-fixture-' })
 		try {
 			const driver = scratch.write(RECOGNITION_DRIVER, RECOGNITION_DRIVER_SOURCE)
-			scratch.link('node_modules/@orkestrel/budget', fileURLToPath(new URL('../', import.meta.url)))
+			const source = new URL('../src/core/', import.meta.url)
+			for (const name of readdirSync(source)) {
+				if (!name.endsWith('.ts')) continue
+				scratch.write(
+					`node_modules/@orkestrel/budget/${name.replace(/\.ts$/u, '.js')}`,
+					stripTypeScriptTypes(readFileSync(new URL(name, source), 'utf8')),
+				)
+			}
+			scratch.write(
+				'node_modules/@orkestrel/budget/package.json',
+				JSON.stringify({
+					type: 'module',
+					module: './index.js',
+					exports: { '.': './index.js', './package.json': './package.json' },
+				}),
+			)
+			scratch.link(
+				'node_modules/@orkestrel/contract',
+				fileURLToPath(new URL('../node_modules/@orkestrel/contract/', import.meta.url)),
+			)
 			const result = spawnSync(process.execPath, [driver, '@orkestrel/budget'], {
 				cwd: scratch.path,
 				encoding: 'utf8',
@@ -28,13 +49,19 @@ describe('recognition driver fixture', () => {
 			expect(result.stderr).toBe('')
 			expect(Object.keys(report).sort()).toStrictEqual([
 				'context',
+				'copyDistinct',
+				'copyOnImport',
 				'distinct',
 				'importLookalike',
+				'importOnCopy',
 				'importOnRequire',
 				'importOwn',
+				'plain',
+				'proxy',
 				'requireLookalike',
 				'requireOnImport',
 				'requireOwn',
+				'subclass',
 			])
 			for (const [key, value] of Object.entries(report)) {
 				if (key === 'context') continue

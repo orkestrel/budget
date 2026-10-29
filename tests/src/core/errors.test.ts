@@ -95,10 +95,10 @@ describe('budget error brand', () => {
 		const forgery = buildBudgetErrorForgery(true, (candidate) => candidate)
 
 		expect(Reflect.set(renamed, 'name', 'RangeError')).toBe(true)
-		expect(isBudgetError(renamed)).toBe(false)
+		expect(isBudgetError(renamed)).toBe(true)
 		expect(isBudgetError(forgery)).toBe(true)
 		expect(Reflect.set(forgery, 'name', 'Error')).toBe(true)
-		expect(isBudgetError(forgery)).toBe(false)
+		expect(isBudgetError(forgery)).toBe(true)
 	})
 
 	it('refuses a branded error whose code is not exhaust', () => {
@@ -152,9 +152,9 @@ describe('budget error brand', () => {
 	})
 
 	it('returns false without throwing for null, primitives, hostile getters, and a revoked proxy', () => {
-		for (const value of buildBudgetErrorHostileValues()) {
+		for (const [index, value] of buildBudgetErrorHostileValues().entries()) {
 			expect(() => isBudgetError(value)).not.toThrow()
-			expect(isBudgetError(value)).toBe(false)
+			expect(isBudgetError(value)).toBe(index === 7)
 		}
 	})
 

@@ -50,14 +50,15 @@ export class BudgetError extends Error {
  *
  * @remarks
  * Recognition requires the native `Error` base, a prototype other than `Error.prototype`, an own
- * {@link BUDGET_ERROR_BRAND} descriptor whose value is the error itself, the name `BudgetError`, the
+ * {@link BUDGET_ERROR_BRAND} descriptor whose value is the error itself, the
  * code `'exhaust'`, and a `context` holding a string `id` and number `max` and `consumed`. The
  * registry-global key makes recognition work across duplicate installations and across the ESM and
  * CommonJS entries, in both directions. The brand check compares identity, so a transparent proxy is
  * refused: its forwarded descriptor stores the target, not the proxy. An unbranded `Error` carrying
  * `code: 'exhaust'`, and an error from a copy that stamps no brand, such as 0.0.13, stay outside the
- * type. The brand is a recognition marker, not proof of origin: a complete forgery that stamps its
- * own identity under the key passes. Hostile or revoked input returns `false` instead of throwing.
+ * type. Subclass instances and renamed errors pass without reading `name`. The brand is a
+ * recognition marker, not proof of origin: a complete look-alike that stamps its own identity under
+ * the key passes. Unreadable required members or revoked input return `false` instead of throwing.
  *
  * @param value - The value to test (typically a `signal.reason`)
  * @returns True if `value` is a `BudgetError` from any copy of this package; false otherwise
@@ -74,7 +75,6 @@ export function isBudgetError(value: unknown): value is BudgetError {
 		if (!(value instanceof INTRINSICS.error)) return false
 		if (INTRINSICS.prototype(value) === INTRINSICS.error.prototype) return false
 		if (INTRINSICS.describe(value, BUDGET_ERROR_BRAND)?.value !== value) return false
-		if (value.name !== 'BudgetError') return false
 		if (INTRINSICS.reflect.read(value, 'code') !== 'exhaust') return false
 		const context: unknown = INTRINSICS.reflect.read(value, 'context')
 		return (

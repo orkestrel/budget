@@ -32,7 +32,10 @@ const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 // compiler majors this toolchain supports, and its in-process API is not. It is
 // resolved from the workspace under proof, so a consumer of the packed artifact is
 // checked by the same compiler that workspace's own `check` script runs.
-const TSC = createRequire(join(ROOT, 'package.json')).resolve('typescript/bin/tsc')
+const TSC = join(
+	dirname(createRequire(join(ROOT, 'package.json')).resolve('typescript/package.json')),
+	'bin/tsc',
+)
 // Windows needs a shell to launch a `.cmd`: Node refuses one directly since the
 // batch-argument hardening, and `spawnSync` returns `EINVAL` with a null status
 // rather than an exit code a caller can read. Every following argument is a literal or
@@ -984,6 +987,12 @@ describe('installed budget error recognition', () => {
 			requireOnImport: true,
 			importLookalike: false,
 			requireLookalike: false,
+			copyDistinct: true,
+			importOnCopy: true,
+			copyOnImport: true,
+			subclass: true,
+			proxy: false,
+			plain: false,
 			context: { id: 'import', max: 1, consumed: 2 },
 		})
 	})
