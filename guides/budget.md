@@ -27,7 +27,7 @@ budget.consume(7_000) // crosses 10_000 — fires `signal`
 
 ### Factories
 
-| API                   | Kind     | Summary                                                                                                                                                            |
+| Name                  | Kind     | Summary                                                                                                                                                            |
 | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `createBudget`        | function | Creates a cumulative budget as a `BudgetInterface<T>` over a `max` ceiling and a `consumer`, whose native signal aborts the moment the tally reaches that ceiling. |
 | `createTokenConsumer` | function | Creates a validated unary consumer that charges one selected `TokenUsage` field.                                                                                   |
@@ -38,7 +38,7 @@ budget.consume(7_000) // crosses 10_000 — fires `signal`
 
 In a guard table a `Shape` cell holds the type the guard narrows to.
 
-| API              | Kind     | Shape                      | Summary                                                                                                                                        |
+| Name             | Kind     | Shape                      | Summary                                                                                                                                        |
 | ---------------- | -------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `isBudget`       | function | `BudgetInterface<unknown>` | Determines whether a value implements `BudgetInterface`, returning `false` rather than throwing on hostile input.                              |
 | `isBudgetError`  | function | `BudgetError`              | Checks whether an unknown value is a `BudgetError` built by any copy of this package, so an abort reason can be read as a budget's exhaustion. |
@@ -49,7 +49,7 @@ In a guard table a `Shape` cell holds the type the guard narrows to.
 
 ### Helpers
 
-| API                          | Kind     | Summary                                                                                                       |
+| Name                         | Kind     | Summary                                                                                                       |
 | ---------------------------- | -------- | ------------------------------------------------------------------------------------------------------------- |
 | `validateBudgetOptions`      | function | Validates and normalizes budget construction options into a fresh copy that omits absent optional keys.       |
 | `validateTokenBudgetOptions` | function | Validates and normalizes token-budget construction options into a fresh copy that omits absent optional keys. |
@@ -58,7 +58,7 @@ In a guard table a `Shape` cell holds the type the guard narrows to.
 
 ### Classes
 
-| API           | Kind  | Summary                                                                                                                                                                                                              |
+| Name          | Kind  | Summary                                                                                                                                                                                                              |
 | ------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Budget`      | class | Implements `BudgetInterface` over a private `AbortController` the instance owns, aborting the composed signal the moment `consumed` reaches the `max` ceiling.                                                       |
 | `Meter`       | class | Implements `MeterInterface` for one stream, charging a budget the growth of the streamed text's estimated cost as each delta arrives.                                                                                |
@@ -66,7 +66,7 @@ In a guard table a `Shape` cell holds the type the guard narrows to.
 
 ### Constants
 
-| API                  | Kind  | Summary                                                                                     |
+| Name                 | Kind  | Summary                                                                                     |
 | -------------------- | ----- | ------------------------------------------------------------------------------------------- |
 | `BUDGET_ERROR_BRAND` | const | Holds the registry-global key used to recognize `BudgetError` values across package copies. |
 
@@ -74,7 +74,7 @@ In a guard table a `Shape` cell holds the type the guard narrows to.
 
 A `Shape` cell holds an interface's data members as bare names in braces, `?` marking an optional member and `plus` introducing its call-signature members, and a type alias's own type literal with a union's arms escaped as `\|`.
 
-| Type                 | Kind      | Shape                                                                            | Summary                                                                                                                                                                                                                     |
+| Name                 | Kind      | Shape                                                                            | Summary                                                                                                                                                                                                                     |
 | -------------------- | --------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BudgetOptions`      | interface | `{ id?, max, consumer, signal? }`                                                | Represents the options for constructing a cumulative budget, accepted by the `createBudget` function and the `Budget` constructor.                                                                                          |
 | `TokenBudgetOptions` | interface | `{ id?, max, scope?, signal? }`                                                  | Represents the options for constructing a token budget, accepted by the `createTokenBudget` function.                                                                                                                       |
