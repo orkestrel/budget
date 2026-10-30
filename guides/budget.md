@@ -27,64 +27,64 @@ budget.consume(7_000) // crosses 10_000 — fires `signal`
 
 ### Factories
 
-| Name                  | Kind     | Summary                                                                                                                                                            |
-| --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `createBudget`        | function | Creates a cumulative budget as a `BudgetInterface<T>` over a `max` ceiling and a `consumer`, whose native signal aborts the moment the tally reaches that ceiling. |
-| `createTokenConsumer` | function | Creates a validated unary consumer that charges one selected `TokenUsage` field.                                                                                   |
-| `createTokenBudget`   | function | Creates a token budget as a `BudgetInterface<TokenUsage>` charging one validated `scope` field per provider call.                                                  |
-| `createTokenMeter`    | function | Creates a token meter as a `MeterInterface` that charges a token budget each growth of a streamed answer's estimated token count as completion tokens.             |
+| Name                  | Kind     | Signature                                                      | Summary                                                                                                                                                            |
+| --------------------- | -------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `createBudget`        | function | `<T>(options: BudgetOptions<T>) => BudgetInterface<T>`         | Creates a cumulative budget as a `BudgetInterface<T>` over a `max` ceiling and a `consumer`, whose native signal aborts the moment the tally reaches that ceiling. |
+| `createTokenConsumer` | function | `(scope: TokenScope) => BudgetOptions<TokenUsage>['consumer']` | Creates a validated unary consumer that charges one selected `TokenUsage` field.                                                                                   |
+| `createTokenBudget`   | function | `(options: TokenBudgetOptions) => BudgetInterface<TokenUsage>` | Creates a token budget as a `BudgetInterface<TokenUsage>` charging one validated `scope` field per provider call.                                                  |
+| `createTokenMeter`    | function | `(options: TokenMeterOptions) => MeterInterface`               | Creates a token meter as a `MeterInterface` that charges a token budget each growth of a streamed answer's estimated token count as completion tokens.             |
 
 ### Validators
 
 In a guard table a `Shape` cell holds the type the guard narrows to.
 
-| Name             | Kind     | Shape                      | Summary                                                                                                                                        |
-| ---------------- | -------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `isBudget`       | function | `BudgetInterface<unknown>` | Determines whether a value implements `BudgetInterface`, returning `false` rather than throwing on hostile input.                              |
-| `isBudgetError`  | function | `BudgetError`              | Checks whether an unknown value is a `BudgetError` built by any copy of this package, so an abort reason can be read as a budget's exhaustion. |
-| `isBudgetAmount` | function | `number`                   | Determines whether a value is a finite nonnegative budget amount.                                                                              |
-| `isBudgetSignal` | function | `AbortSignal`              | Determines whether a value is a genuine native `AbortSignal`, returning `false` rather than throwing on hostile input.                         |
-| `isTokenScope`   | function | `TokenScope`               | Determines whether a value is a supported `TokenScope` field selector.                                                                         |
-| `isTokenUsage`   | function | `TokenUsage`               | Determines whether a value is readable token usage carrying three finite nonnegative counts, returning `false` rather than throwing.           |
+| Name             | Kind     | Signature                                               | Summary                                                                                                                                        |
+| ---------------- | -------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isBudget`       | function | `(value: unknown) => value is BudgetInterface<unknown>` | Determines whether a value implements `BudgetInterface`, returning `false` rather than throwing on hostile input.                              |
+| `isBudgetError`  | function | `(value: unknown) => value is BudgetError`              | Checks whether an unknown value is a `BudgetError` built by any copy of this package, so an abort reason can be read as a budget's exhaustion. |
+| `isBudgetAmount` | function | `(value: unknown) => value is number`                   | Determines whether a value is a finite nonnegative budget amount.                                                                              |
+| `isBudgetSignal` | function | `(value: unknown) => value is AbortSignal`              | Determines whether a value is a genuine native `AbortSignal`, returning `false` rather than throwing on hostile input.                         |
+| `isTokenScope`   | function | `(value: unknown) => value is TokenScope`               | Determines whether a value is a supported `TokenScope` field selector.                                                                         |
+| `isTokenUsage`   | function | `(value: unknown) => value is TokenUsage`               | Determines whether a value is readable token usage carrying three finite nonnegative counts, returning `false` rather than throwing.           |
 
 ### Helpers
 
-| Name                         | Kind     | Summary                                                                                                       |
-| ---------------------------- | -------- | ------------------------------------------------------------------------------------------------------------- |
-| `validateBudgetOptions`      | function | Validates and normalizes budget construction options into a fresh copy that omits absent optional keys.       |
-| `validateTokenBudgetOptions` | function | Validates and normalizes token-budget construction options into a fresh copy that omits absent optional keys. |
-| `validateMeterOptions`       | function | Validates and normalizes meter construction options into a fresh copy.                                        |
-| `validateTokenMeterOptions`  | function | Validates and normalizes token-meter construction options into a fresh copy.                                  |
+| Name                         | Kind     | Signature                                             | Summary                                                                                                       |
+| ---------------------------- | -------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `validateBudgetOptions`      | function | `<T>(options: BudgetOptions<T>) => BudgetOptions<T>`  | Validates and normalizes budget construction options into a fresh copy that omits absent optional keys.       |
+| `validateTokenBudgetOptions` | function | `(options: TokenBudgetOptions) => TokenBudgetOptions` | Validates and normalizes token-budget construction options into a fresh copy that omits absent optional keys. |
+| `validateMeterOptions`       | function | `<T>(options: MeterOptions<T>) => MeterOptions<T>`    | Validates and normalizes meter construction options into a fresh copy.                                        |
+| `validateTokenMeterOptions`  | function | `(options: TokenMeterOptions) => TokenMeterOptions`   | Validates and normalizes token-meter construction options into a fresh copy.                                  |
 
 ### Classes
 
-| Name          | Kind  | Summary                                                                                                                                                                                                              |
-| ------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Budget`      | class | Implements `BudgetInterface` over a private `AbortController` the instance owns, aborting the composed signal the moment `consumed` reaches the `max` ceiling.                                                       |
-| `Meter`       | class | Implements `MeterInterface` for one stream, charging a budget the growth of the streamed text's estimated cost as each delta arrives.                                                                                |
-| `BudgetError` | class | Reports a budget whose cumulative tally reached its ceiling — the abort reason of the budget's own `signal`, carrying the machine-readable `code` `'exhaust'` and the budget's `id`, `max`, and `consumed` readings. |
+| Name          | Kind  | Signature                                                  | Summary                                                                                                                                                                                                              |
+| ------------- | ----- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Budget`      | class | `new <T>(options: BudgetOptions<T>) => BudgetInterface<T>` | Implements `BudgetInterface` over a private `AbortController` the instance owns, aborting the composed signal the moment `consumed` reaches the `max` ceiling.                                                       |
+| `Meter`       | class | `new <T>(options: MeterOptions<T>) => MeterInterface`      | Implements `MeterInterface` for one stream, charging a budget the growth of the streamed text's estimated cost as each delta arrives.                                                                                |
+| `BudgetError` | class | `new (context: BudgetErrorContext) => BudgetError`         | Reports a budget whose cumulative tally reached its ceiling — the abort reason of the budget's own `signal`, carrying the machine-readable `code` `'exhaust'` and the budget's `id`, `max`, and `consumed` readings. |
 
 ### Constants
 
-| Name                 | Kind  | Summary                                                                                     |
-| -------------------- | ----- | ------------------------------------------------------------------------------------------- |
-| `BUDGET_ERROR_BRAND` | const | Holds the registry-global key used to recognize `BudgetError` values across package copies. |
+| Name                 | Kind  | Signature       | Summary                                                                                     |
+| -------------------- | ----- | --------------- | ------------------------------------------------------------------------------------------- |
+| `BUDGET_ERROR_BRAND` | const | `unique symbol` | Holds the registry-global key used to recognize `BudgetError` values across package copies. |
 
 ### Types
 
 A `Shape` cell holds an interface's data members as bare names in braces, `?` marking an optional member and `plus` introducing its call-signature members, and a type alias's own type literal with a union's arms escaped as `\|`.
 
-| Name                 | Kind      | Shape                                                                            | Summary                                                                                                                                                                                                                     |
-| -------------------- | --------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BudgetOptions`      | interface | `{ id?, max, consumer, signal? }`                                                | Represents the options for constructing a cumulative budget, accepted by the `createBudget` function and the `Budget` constructor.                                                                                          |
-| `TokenBudgetOptions` | interface | `{ id?, max, scope?, signal? }`                                                  | Represents the options for constructing a token budget, accepted by the `createTokenBudget` function.                                                                                                                       |
-| `BudgetInterface`    | interface | `{ id, signal, max, consumed, remaining, exhausted } plus start, consume, clear` | Represents the cumulative cost handle contract: a lifetime tally, its validated ceiling, and the native signal that aborts when the tally reaches that ceiling.                                                             |
-| `TokenScope`         | type      | `'completion' \| 'total' \| 'prompt'`                                            | Names the token-usage field selected as the charge for a token budget.                                                                                                                                                      |
-| `TokenUsage`         | interface | `{ prompt, completion, total }`                                                  | Represents the canonical LLM cost unit: the finite nonnegative token counts reported for one provider call, and the typical `T` for an agent budget.                                                                        |
-| `MeterOptions`       | interface | `{ budget, estimator, producer }`                                                | Represents the options for constructing a meter, accepted by the `Meter` constructor.                                                                                                                                       |
-| `TokenMeterOptions`  | interface | `{ budget, estimator }`                                                          | Represents the options for constructing a token meter, accepted by the `createTokenMeter` function.                                                                                                                         |
-| `MeterInterface`     | interface | `{ charged } plus charge`                                                        | Represents the stream meter contract: it measures text as it streams and charges a budget the growth of the text's estimated cost, keeping the cost already charged so a later reported total can be reconciled against it. |
-| `BudgetErrorContext` | interface | `{ id, max, consumed }`                                                          | Represents the readings a `BudgetError` carries: the exhausted budget's trace `id`, its `max` ceiling, and its `consumed` tally at the moment the ceiling was reached.                                                      |
+| Name                 | Kind      | Signature                                                                          | Summary                                                                                                                                                                                                                     |
+| -------------------- | --------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BudgetOptions`      | interface | `{ id?, max, consumer, signal? }`                                                  | Represents the options for constructing a cumulative budget, accepted by the `createBudget` function and the `Budget` constructor.                                                                                          |
+| `TokenBudgetOptions` | interface | `{ id?, max, scope?, signal? }`                                                    | Represents the options for constructing a token budget, accepted by the `createTokenBudget` function.                                                                                                                       |
+| `BudgetInterface`    | interface | `{ id, signal, max, consumed, remaining, exhausted, start(), consume(), clear() }` | Represents the cumulative cost handle contract: a lifetime tally, its validated ceiling, and the native signal that aborts when the tally reaches that ceiling.                                                             |
+| `TokenScope`         | type      | `'completion' \| 'total' \| 'prompt'`                                              | Names the token-usage field selected as the charge for a token budget.                                                                                                                                                      |
+| `TokenUsage`         | interface | `{ prompt, completion, total }`                                                    | Represents the canonical LLM cost unit: the finite nonnegative token counts reported for one provider call, and the typical `T` for an agent budget.                                                                        |
+| `MeterOptions`       | interface | `{ budget, estimator, producer }`                                                  | Represents the options for constructing a meter, accepted by the `Meter` constructor.                                                                                                                                       |
+| `TokenMeterOptions`  | interface | `{ budget, estimator }`                                                            | Represents the options for constructing a token meter, accepted by the `createTokenMeter` function.                                                                                                                         |
+| `MeterInterface`     | interface | `{ charged, charge() }`                                                            | Represents the stream meter contract: it measures text as it streams and charges a budget the growth of the text's estimated cost, keeping the cost already charged so a later reported total can be reconciled against it. |
+| `BudgetErrorContext` | interface | `{ id, max, consumed }`                                                            | Represents the readings a `BudgetError` carries: the exhausted budget's trace `id`, its `max` ceiling, and its `consumed` tally at the moment the ceiling was reached.                                                      |
 
 The `id`, `signal`, `max`, `consumed`, `remaining`, and `exhausted` members of `BudgetInterface` are `readonly` data members (the preceding Surface rows) — its call-signature methods are documented under [Methods](#methods). The `charged` member of `MeterInterface` is a `readonly` data member; its call-signature method is documented under [Methods](#methods).
 
