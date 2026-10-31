@@ -6,4 +6,4 @@
  * transparent proxy cannot forward its target's brand as its own. The registry makes the key
  * discoverable; it is a recognition mechanism, not an unforgeable provenance marker.
  */
-export const BUDGET_ERROR_BRAND = Symbol.for('@orkestrel/budget.error')
+export const BUDGET_ERROR_BRAND = Symbol.for('@orkestrel/budget.BudgetError')

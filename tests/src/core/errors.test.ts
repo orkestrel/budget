@@ -34,7 +34,7 @@ describe('budget error brand', () => {
 	it('stamps its own identity under the registry-global key, not enumerable', () => {
 		const error = new BudgetError({ id: 'tokens', max: 10, consumed: 12 })
 
-		expect(BUDGET_ERROR_BRAND).toBe(Symbol.for('@orkestrel/budget.error'))
+		expect(BUDGET_ERROR_BRAND).toBe(Symbol.for('@orkestrel/budget.BudgetError'))
 		expect(Object.getOwnPropertyDescriptor(error, BUDGET_ERROR_BRAND)).toStrictEqual({
 			value: error,
 			writable: false,
