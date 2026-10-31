@@ -36,8 +36,6 @@ budget.consume(7_000) // crosses 10_000 — fires `signal`
 
 ### Validators
 
-In a guard table a `Shape` cell holds the type the guard narrows to.
-
 | Name             | Kind     | Signature                                               | Summary                                                                                                                                        |
 | ---------------- | -------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `isBudget`       | function | `(value: unknown) => value is BudgetInterface<unknown>` | Determines whether a value implements `BudgetInterface`, returning `false` rather than throwing on hostile input.                              |
@@ -71,8 +69,6 @@ In a guard table a `Shape` cell holds the type the guard narrows to.
 | `BUDGET_ERROR_BRAND` | const | `unique symbol` | Holds the registry-global key used to recognize `BudgetError` values across package copies. |
 
 ### Types
-
-A `Shape` cell holds an interface's data members as bare names in braces, `?` marking an optional member and `plus` introducing its call-signature members, and a type alias's own type literal with a union's arms escaped as `\|`.
 
 | Name                 | Kind      | Signature                                                                          | Summary                                                                                                                                                                                                                     |
 | -------------------- | --------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
