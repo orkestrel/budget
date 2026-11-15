@@ -266,7 +266,7 @@ describe('validateMeterOptions', () => {
 		expect(error.context).toEqual({
 			path: ['options', 'budget'],
 			limit: 'BudgetInterface',
-			received: 'object',
+			received: 'instance',
 		})
 	})
 

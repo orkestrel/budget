@@ -137,7 +137,7 @@ describe('createTokenConsumer', () => {
 		expect(error.context).toEqual({
 			path: ['usage'],
 			limit: 'finite nonnegative prompt, completion, and total',
-			received: 'object',
+			received: 'instance',
 		})
 	})
 })
@@ -213,7 +213,7 @@ describe('createTokenBudget construction boundary', () => {
 		expect(error.context).toEqual({
 			path: ['options', 'signal'],
 			limit: 'native AbortSignal or undefined',
-			received: 'object',
+			received: 'instance',
 		})
 	})
 })
