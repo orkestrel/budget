@@ -362,7 +362,7 @@ describe('validateTokenMeterOptions', () => {
 			['options'],
 			'plain record',
 			preview([]),
-			'TokenMeter: options must be a plain record',
+			'TokenMeter: options must be plain record',
 		],
 		[
 			'budget',
@@ -371,7 +371,7 @@ describe('validateTokenMeterOptions', () => {
 			['options', 'budget'],
 			'BudgetInterface',
 			'null',
-			'TokenMeter: budget must implement BudgetInterface',
+			'TokenMeter: options.budget must be BudgetInterface',
 		],
 		[
 			'estimator',
@@ -380,7 +380,7 @@ describe('validateTokenMeterOptions', () => {
 			['options', 'estimator'],
 			'function',
 			'2',
-			'TokenMeter: estimator must be a function',
+			'TokenMeter: options.estimator must be function',
 		],
 	])(
 		'rejects invalid %s with exact contract context',

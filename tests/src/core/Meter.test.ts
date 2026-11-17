@@ -23,7 +23,7 @@ describe('Meter construction boundary', () => {
 		const error = captureContractError(() => Reflect.construct(Meter, [value]))
 
 		expect(error.code).toBe('bound')
-		expect(error.message).toBe('Meter: options must be a plain record')
+		expect(error.message).toBe('Meter: options must be plain record')
 		expect(error.context).toEqual({
 			path: ['options'],
 			limit: 'plain record',
@@ -73,7 +73,7 @@ describe('Meter construction boundary', () => {
 		)
 
 		expect(error.code).toBe('placement')
-		expect(error.message).toBe('Meter: budget must implement BudgetInterface')
+		expect(error.message).toBe('Meter: options.budget must be BudgetInterface')
 		expect(error.context).toEqual({
 			path: ['options', 'budget'],
 			limit: 'BudgetInterface',
@@ -103,9 +103,13 @@ describe('Meter construction boundary', () => {
 		[
 			'estimator',
 			{ estimator: 'length', producer: selectCharge },
-			'Meter: estimator must be a function',
+			'Meter: options.estimator must be function',
 		],
-		['producer', { estimator: selectLength, producer: 3 }, 'Meter: producer must be a function'],
+		[
+			'producer',
+			{ estimator: selectLength, producer: 3 },
+			'Meter: options.producer must be function',
+		],
 	])('rejects a non-function %s with exact placement context', (key, rest, message) => {
 		const { budget } = createRecordingBudget<number>(10, selectCharge)
 		const options = { budget, ...rest }
@@ -336,7 +340,7 @@ describe('Meter failure atomicity', () => {
 		const error = captureContractError(() => meter.charge('abc'))
 
 		expect(error.code).toBe('range')
-		expect(error.message).toBe('Meter.charge: estimate must be finite and nonnegative')
+		expect(error.message).toBe('Meter.charge: estimate must be finite nonnegative number')
 		expect(error.context).toEqual({
 			path: ['estimate'],
 			limit: 'finite nonnegative number',
@@ -367,7 +371,7 @@ describe('Meter failure atomicity', () => {
 		const error = captureContractError(() => Reflect.apply(meter.charge, meter, [delta]))
 
 		expect(error.code).toBe('literal')
-		expect(error.message).toBe('Meter.charge: delta must be a string')
+		expect(error.message).toBe('Meter.charge: delta must be string')
 		expect(error.context).toEqual({
 			path: ['delta'],
 			limit: 'string',

@@ -1,5 +1,5 @@
 import type { BudgetInterface, BudgetOptions } from './types.js'
-import { ContractError, preview } from '@orkestrel/contract'
+import { refuseValue } from '@orkestrel/contract'
 import { BudgetError } from './errors.js'
 import { validateBudgetOptions } from './helpers.js'
 import { isBudgetAmount } from './validators.js'
@@ -82,27 +82,17 @@ export class Budget<T> implements BudgetInterface<T> {
 
 	consume(value: T): void {
 		const charge = this.#consumer(value)
-		if (!isBudgetAmount(charge)) {
-			throw new ContractError('Budget.consume: charge must be finite and nonnegative', {
-				code: 'range',
-				context: {
-					path: ['charge'],
-					limit: 'finite nonnegative number',
-					received: preview(charge),
-				},
-			})
-		}
+		refuseValue(charge, isBudgetAmount, 'Budget.consume', {
+			path: ['charge'],
+			limit: 'finite nonnegative number',
+			code: 'range',
+		})
 		const consumed = this.#consumed + charge
-		if (!isBudgetAmount(consumed)) {
-			throw new ContractError('Budget.consume: cumulative tally must remain finite', {
-				code: 'range',
-				context: {
-					path: ['consumed'],
-					limit: 'finite number',
-					received: preview(consumed),
-				},
-			})
-		}
+		refuseValue(consumed, isBudgetAmount, 'Budget.consume', {
+			path: ['consumed'],
+			limit: 'finite number',
+			code: 'range',
+		})
 
 		this.#consumed = consumed
 		if (this.exhausted && !this.#signal.aborted) this.#controller.abort(this.#exhaust())

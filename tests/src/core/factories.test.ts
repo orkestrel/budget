@@ -65,6 +65,7 @@ describe('createBudget', () => {
 		const error = captureContractError(() => Reflect.apply(createBudget, undefined, [options]))
 
 		expect(error.code).toBe('placement')
+		expect(error.message).toBe('Budget: options.consumer must be function')
 		expect(error.context).toEqual({
 			path: ['options', 'consumer'],
 			limit: 'function',
@@ -88,6 +89,9 @@ describe('createTokenConsumer', () => {
 		)
 
 		expect(error.code).toBe('literal')
+		expect(error.message).toBe(
+			"createTokenConsumer: scope must be 'completion' | 'total' | 'prompt'",
+		)
 		expect(error.context).toEqual({
 			path: ['scope'],
 			limit: "'completion' | 'total' | 'prompt'",
@@ -107,10 +111,37 @@ describe('createTokenConsumer', () => {
 		const error = captureContractError(() => Reflect.apply(consumer, undefined, [value]))
 
 		expect(error.code).toBe('placement')
+		expect(error.message).toBe(
+			'Token consumer: usage must be finite nonnegative prompt, completion, and total',
+		)
 		expect(error.context).toEqual({
 			path: ['usage'],
 			limit: 'finite nonnegative prompt, completion, and total',
 			received: preview(value),
+		})
+	})
+
+	it('rejects a selected charge that stops being valid after the usage check', () => {
+		const reads = [1, -1]
+		const consumer = createTokenConsumer('completion')
+		const error = captureContractError(() =>
+			Reflect.apply(consumer, undefined, [
+				{
+					prompt: 1,
+					total: 1,
+					get completion(): number {
+						return reads.shift() ?? -1
+					},
+				},
+			]),
+		)
+
+		expect(error.code).toBe('range')
+		expect(error.message).toBe('Token consumer: usage.completion must be finite nonnegative number')
+		expect(error.context).toEqual({
+			path: ['usage', 'completion'],
+			limit: 'finite nonnegative number',
+			received: '-1',
 		})
 	})
 
@@ -120,6 +151,9 @@ describe('createTokenConsumer', () => {
 		const error = captureContractError(() => Reflect.apply(consumer, undefined, [value]))
 
 		expect(error.code).toBe('placement')
+		expect(error.message).toBe(
+			'Token consumer: usage must be finite nonnegative prompt, completion, and total',
+		)
 		expect(error.context).toEqual({
 			path: ['usage'],
 			limit: 'finite nonnegative prompt, completion, and total',
@@ -134,6 +168,9 @@ describe('createTokenConsumer', () => {
 		const error = captureContractError(() => Reflect.apply(consumer, undefined, [revoked.proxy]))
 
 		expect(error.code).toBe('placement')
+		expect(error.message).toBe(
+			'Token consumer: usage must be finite nonnegative prompt, completion, and total',
+		)
 		expect(error.context).toEqual({
 			path: ['usage'],
 			limit: 'finite nonnegative prompt, completion, and total',
@@ -151,6 +188,7 @@ describe('createTokenBudget construction boundary', () => {
 		const error = captureContractError(() => Reflect.apply(createTokenBudget, undefined, [value]))
 
 		expect(error.code).toBe('bound')
+		expect(error.message).toBe('TokenBudget: options must be plain record')
 		expect(error.context).toEqual({
 			path: ['options'],
 			limit: 'plain record',
@@ -198,6 +236,7 @@ describe('createTokenBudget construction boundary', () => {
 			)
 
 			expect(error.code).toBe(code)
+			expect(error.message).toBe(`TokenBudget: ${path.join('.')} must be ${limit}`)
 			expect(error.context).toEqual({ path, limit, received })
 		},
 	)
@@ -210,6 +249,9 @@ describe('createTokenBudget construction boundary', () => {
 		)
 
 		expect(error.code).toBe('placement')
+		expect(error.message).toBe(
+			'TokenBudget: options.signal must be native AbortSignal or undefined',
+		)
 		expect(error.context).toEqual({
 			path: ['options', 'signal'],
 			limit: 'native AbortSignal or undefined',
@@ -285,7 +327,7 @@ describe('createTokenMeter construction boundary', () => {
 		const error = captureContractError(() => Reflect.apply(createTokenMeter, undefined, [value]))
 
 		expect(error.code).toBe('bound')
-		expect(error.message).toBe('TokenMeter: options must be a plain record')
+		expect(error.message).toBe('TokenMeter: options must be plain record')
 		expect(error.context).toEqual({
 			path: ['options'],
 			limit: 'plain record',
@@ -316,7 +358,7 @@ describe('createTokenMeter construction boundary', () => {
 		)
 
 		expect(error.code).toBe('placement')
-		expect(error.message).toBe('TokenMeter: budget must implement BudgetInterface')
+		expect(error.message).toBe('TokenMeter: options.budget must be BudgetInterface')
 		expect(error.context).toEqual({
 			path: ['options', 'budget'],
 			limit: 'BudgetInterface',
@@ -331,7 +373,7 @@ describe('createTokenMeter construction boundary', () => {
 		)
 
 		expect(error.code).toBe('placement')
-		expect(error.message).toBe('TokenMeter: estimator must be a function')
+		expect(error.message).toBe('TokenMeter: options.estimator must be function')
 		expect(error.context).toEqual({
 			path: ['options', 'estimator'],
 			limit: 'function',

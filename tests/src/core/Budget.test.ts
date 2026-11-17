@@ -19,6 +19,7 @@ describe('Budget construction boundary', () => {
 		const error = captureContractError(() => Reflect.construct(Budget, [value]))
 
 		expect(error.code).toBe('bound')
+		expect(error.message).toBe('Budget: options must be plain record')
 		expect(error.context).toEqual({
 			path: ['options'],
 			limit: 'plain record',
@@ -45,6 +46,7 @@ describe('Budget construction boundary', () => {
 		)
 
 		expect(error.code).toBe('literal')
+		expect(error.message).toBe('Budget: options.id must be string or undefined')
 		expect(error.context).toEqual({
 			path: ['options', 'id'],
 			limit: 'string or undefined',
@@ -63,6 +65,7 @@ describe('Budget construction boundary', () => {
 		)
 
 		expect(error.code).toBe('range')
+		expect(error.message).toBe('Budget: options.max must be finite nonnegative number')
 		expect(error.context).toEqual({
 			path: ['options', 'max'],
 			limit: 'finite nonnegative number',
@@ -76,6 +79,7 @@ describe('Budget construction boundary', () => {
 		)
 
 		expect(error.code).toBe('placement')
+		expect(error.message).toBe('Budget: options.consumer must be function')
 		expect(error.context).toEqual({
 			path: ['options', 'consumer'],
 			limit: 'function',
@@ -93,6 +97,7 @@ describe('Budget construction boundary', () => {
 		)
 
 		expect(error.code).toBe('placement')
+		expect(error.message).toBe('Budget: options.signal must be native AbortSignal or undefined')
 		expect(error.context).toEqual({
 			path: ['options', 'signal'],
 			limit: 'native AbortSignal or undefined',
@@ -180,6 +185,7 @@ describe('Budget consumption', () => {
 		const error = captureContractError(() => budget.consume(1))
 
 		expect(error.code).toBe('range')
+		expect(error.message).toBe('Budget.consume: charge must be finite nonnegative number')
 		expect(error.context).toEqual({
 			path: ['charge'],
 			limit: 'finite nonnegative number',
@@ -215,6 +221,7 @@ describe('Budget consumption', () => {
 		const error = captureContractError(() => budget.consume(charge))
 
 		expect(error.code).toBe('range')
+		expect(error.message).toBe('Budget.consume: consumed must be finite number')
 		expect(error.context).toEqual({
 			path: ['consumed'],
 			limit: 'finite number',

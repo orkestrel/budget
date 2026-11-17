@@ -1,5 +1,5 @@
 import type { BudgetInterface, MeterInterface, MeterOptions } from './types.js'
-import { ContractError, isString, preview } from '@orkestrel/contract'
+import { isString, refuseValue } from '@orkestrel/contract'
 import { validateMeterOptions } from './helpers.js'
 import { isBudgetAmount } from './validators.js'
 
@@ -70,24 +70,18 @@ export class Meter<T> implements MeterInterface {
 	}
 
 	charge(delta: string): void {
-		if (!isString(delta)) {
-			throw new ContractError('Meter.charge: delta must be a string', {
-				code: 'literal',
-				context: { path: ['delta'], limit: 'string', received: preview(delta) },
-			})
-		}
+		refuseValue(delta, isString, 'Meter.charge', {
+			path: ['delta'],
+			limit: 'string',
+			code: 'literal',
+		})
 		this.#text += delta
 		const estimate = this.#estimator(this.#text)
-		if (!isBudgetAmount(estimate)) {
-			throw new ContractError('Meter.charge: estimate must be finite and nonnegative', {
-				code: 'range',
-				context: {
-					path: ['estimate'],
-					limit: 'finite nonnegative number',
-					received: preview(estimate),
-				},
-			})
-		}
+		refuseValue(estimate, isBudgetAmount, 'Meter.charge', {
+			path: ['estimate'],
+			limit: 'finite nonnegative number',
+			code: 'range',
+		})
 		const pending = [...this.#claims].reduce((sum, claim) => sum + claim.growth, 0)
 		const growth = estimate - (this.#accepted + pending)
 		if (growth <= 0) return

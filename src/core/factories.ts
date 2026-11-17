@@ -7,7 +7,7 @@ import type {
 	TokenScope,
 	TokenUsage,
 } from './types.js'
-import { ContractError, preview, readValue } from '@orkestrel/contract'
+import { preview, readValue, refuseValue } from '@orkestrel/contract'
 import { Budget } from './Budget.js'
 import { Meter } from './Meter.js'
 import { validateTokenBudgetOptions, validateTokenMeterOptions } from './helpers.js'
@@ -68,27 +68,17 @@ export function createBudget<T>(options: BudgetOptions<T>): BudgetInterface<T> {
  * ```
  */
 export function createTokenConsumer(scope: TokenScope): BudgetOptions<TokenUsage>['consumer'] {
-	if (!isTokenScope(scope)) {
-		throw new ContractError('createTokenConsumer: scope is not supported', {
-			code: 'literal',
-			context: {
-				path: ['scope'],
-				limit: "'completion' | 'total' | 'prompt'",
-				received: preview(scope),
-			},
-		})
-	}
+	refuseValue(scope, isTokenScope, 'createTokenConsumer', {
+		path: ['scope'],
+		limit: "'completion' | 'total' | 'prompt'",
+		code: 'literal',
+	})
 	return (usage) => {
-		if (!isTokenUsage(usage)) {
-			throw new ContractError('Token consumer: usage must have valid token counts', {
-				code: 'placement',
-				context: {
-					path: ['usage'],
-					limit: 'finite nonnegative prompt, completion, and total',
-					received: preview(usage),
-				},
-			})
-		}
+		refuseValue(usage, isTokenUsage, 'Token consumer', {
+			path: ['usage'],
+			limit: 'finite nonnegative prompt, completion, and total',
+			code: 'placement',
+		})
 
 		const charge = readValue(() => Reflect.get(usage, scope), 'Token consumer', {
 			subject: 'selected charge',
@@ -99,16 +89,11 @@ export function createTokenConsumer(scope: TokenScope): BudgetOptions<TokenUsage
 				received: preview(usage),
 			},
 		})
-		if (!isBudgetAmount(charge)) {
-			throw new ContractError('Token consumer: selected charge must be valid', {
-				code: 'range',
-				context: {
-					path: ['usage', scope],
-					limit: 'finite nonnegative number',
-					received: preview(charge),
-				},
-			})
-		}
+		refuseValue(charge, isBudgetAmount, 'Token consumer', {
+			path: ['usage', scope],
+			limit: 'finite nonnegative number',
+			code: 'range',
+		})
 		return charge
 	}
 }

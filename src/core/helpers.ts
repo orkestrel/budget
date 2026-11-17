@@ -1,11 +1,12 @@
 import type { BudgetOptions, MeterOptions, TokenBudgetOptions, TokenMeterOptions } from './types.js'
 import {
-	ContractError,
 	isFunction,
 	isRecord,
 	isString,
+	optionalOf,
 	preview,
 	readValue,
+	refuseValue,
 } from '@orkestrel/contract'
 import { isBudget, isBudgetAmount, isBudgetSignal, isTokenScope } from './validators.js'
 
@@ -27,16 +28,11 @@ import { isBudget, isBudgetAmount, isBudgetSignal, isTokenScope } from './valida
  * ```
  */
 export function validateBudgetOptions<T>(options: BudgetOptions<T>): BudgetOptions<T> {
-	if (!isRecord(options)) {
-		throw new ContractError('Budget: options must be a plain record', {
-			code: 'bound',
-			context: {
-				path: ['options'],
-				limit: 'plain record',
-				received: preview(options),
-			},
-		})
-	}
+	refuseValue(options, isRecord, 'Budget', {
+		path: ['options'],
+		limit: 'plain record',
+		code: 'bound',
+	})
 
 	const { id, max, consumer, signal } = readValue(
 		() => ({
@@ -57,46 +53,26 @@ export function validateBudgetOptions<T>(options: BudgetOptions<T>): BudgetOptio
 		},
 	)
 
-	if (id !== undefined && !isString(id)) {
-		throw new ContractError('Budget: id must be a string when defined', {
-			code: 'literal',
-			context: {
-				path: ['options', 'id'],
-				limit: 'string or undefined',
-				received: preview(id),
-			},
-		})
-	}
-	if (!isBudgetAmount(max)) {
-		throw new ContractError('Budget: max must be finite and nonnegative', {
-			code: 'range',
-			context: {
-				path: ['options', 'max'],
-				limit: 'finite nonnegative number',
-				received: preview(max),
-			},
-		})
-	}
-	if (!isFunction(consumer)) {
-		throw new ContractError('Budget: consumer must be a function', {
-			code: 'placement',
-			context: {
-				path: ['options', 'consumer'],
-				limit: 'function',
-				received: preview(consumer),
-			},
-		})
-	}
-	if (signal !== undefined && !isBudgetSignal(signal)) {
-		throw new ContractError('Budget: signal must be a native AbortSignal when defined', {
-			code: 'placement',
-			context: {
-				path: ['options', 'signal'],
-				limit: 'native AbortSignal or undefined',
-				received: preview(signal),
-			},
-		})
-	}
+	refuseValue(id, optionalOf(isString), 'Budget', {
+		path: ['options', 'id'],
+		limit: 'string or undefined',
+		code: 'literal',
+	})
+	refuseValue(max, isBudgetAmount, 'Budget', {
+		path: ['options', 'max'],
+		limit: 'finite nonnegative number',
+		code: 'range',
+	})
+	refuseValue(consumer, isFunction, 'Budget', {
+		path: ['options', 'consumer'],
+		limit: 'function',
+		code: 'placement',
+	})
+	refuseValue(signal, optionalOf(isBudgetSignal), 'Budget', {
+		path: ['options', 'signal'],
+		limit: 'native AbortSignal or undefined',
+		code: 'placement',
+	})
 
 	if (id !== undefined && signal !== undefined) return { id, max, consumer, signal }
 	if (id !== undefined) return { id, max, consumer }
@@ -122,16 +98,11 @@ export function validateBudgetOptions<T>(options: BudgetOptions<T>): BudgetOptio
  * ```
  */
 export function validateTokenBudgetOptions(options: TokenBudgetOptions): TokenBudgetOptions {
-	if (!isRecord(options)) {
-		throw new ContractError('TokenBudget: options must be a plain record', {
-			code: 'bound',
-			context: {
-				path: ['options'],
-				limit: 'plain record',
-				received: preview(options),
-			},
-		})
-	}
+	refuseValue(options, isRecord, 'TokenBudget', {
+		path: ['options'],
+		limit: 'plain record',
+		code: 'bound',
+	})
 
 	const { id, max, scope, signal } = readValue(
 		() => ({
@@ -152,46 +123,26 @@ export function validateTokenBudgetOptions(options: TokenBudgetOptions): TokenBu
 		},
 	)
 
-	if (id !== undefined && !isString(id)) {
-		throw new ContractError('TokenBudget: id must be a string when defined', {
-			code: 'literal',
-			context: {
-				path: ['options', 'id'],
-				limit: 'string or undefined',
-				received: preview(id),
-			},
-		})
-	}
-	if (!isBudgetAmount(max)) {
-		throw new ContractError('TokenBudget: max must be finite and nonnegative', {
-			code: 'range',
-			context: {
-				path: ['options', 'max'],
-				limit: 'finite nonnegative number',
-				received: preview(max),
-			},
-		})
-	}
-	if (scope !== undefined && !isTokenScope(scope)) {
-		throw new ContractError('TokenBudget: scope is not supported', {
-			code: 'literal',
-			context: {
-				path: ['options', 'scope'],
-				limit: "'completion' | 'total' | 'prompt' or undefined",
-				received: preview(scope),
-			},
-		})
-	}
-	if (signal !== undefined && !isBudgetSignal(signal)) {
-		throw new ContractError('TokenBudget: signal must be native when defined', {
-			code: 'placement',
-			context: {
-				path: ['options', 'signal'],
-				limit: 'native AbortSignal or undefined',
-				received: preview(signal),
-			},
-		})
-	}
+	refuseValue(id, optionalOf(isString), 'TokenBudget', {
+		path: ['options', 'id'],
+		limit: 'string or undefined',
+		code: 'literal',
+	})
+	refuseValue(max, isBudgetAmount, 'TokenBudget', {
+		path: ['options', 'max'],
+		limit: 'finite nonnegative number',
+		code: 'range',
+	})
+	refuseValue(scope, optionalOf(isTokenScope), 'TokenBudget', {
+		path: ['options', 'scope'],
+		limit: "'completion' | 'total' | 'prompt' or undefined",
+		code: 'literal',
+	})
+	refuseValue(signal, optionalOf(isBudgetSignal), 'TokenBudget', {
+		path: ['options', 'signal'],
+		limit: 'native AbortSignal or undefined',
+		code: 'placement',
+	})
 
 	if (id !== undefined && scope !== undefined && signal !== undefined) {
 		return { id, max, scope, signal }
@@ -226,16 +177,11 @@ export function validateTokenBudgetOptions(options: TokenBudgetOptions): TokenBu
  * ```
  */
 export function validateMeterOptions<T>(options: MeterOptions<T>): MeterOptions<T> {
-	if (!isRecord(options)) {
-		throw new ContractError('Meter: options must be a plain record', {
-			code: 'bound',
-			context: {
-				path: ['options'],
-				limit: 'plain record',
-				received: preview(options),
-			},
-		})
-	}
+	refuseValue(options, isRecord, 'Meter', {
+		path: ['options'],
+		limit: 'plain record',
+		code: 'bound',
+	})
 
 	const { budget, estimator, producer } = readValue(
 		() => ({
@@ -255,36 +201,21 @@ export function validateMeterOptions<T>(options: MeterOptions<T>): MeterOptions<
 		},
 	)
 
-	if (!isBudget(budget)) {
-		throw new ContractError('Meter: budget must implement BudgetInterface', {
-			code: 'placement',
-			context: {
-				path: ['options', 'budget'],
-				limit: 'BudgetInterface',
-				received: preview(budget),
-			},
-		})
-	}
-	if (!isFunction(estimator)) {
-		throw new ContractError('Meter: estimator must be a function', {
-			code: 'placement',
-			context: {
-				path: ['options', 'estimator'],
-				limit: 'function',
-				received: preview(estimator),
-			},
-		})
-	}
-	if (!isFunction(producer)) {
-		throw new ContractError('Meter: producer must be a function', {
-			code: 'placement',
-			context: {
-				path: ['options', 'producer'],
-				limit: 'function',
-				received: preview(producer),
-			},
-		})
-	}
+	refuseValue(budget, isBudget, 'Meter', {
+		path: ['options', 'budget'],
+		limit: 'BudgetInterface',
+		code: 'placement',
+	})
+	refuseValue(estimator, isFunction, 'Meter', {
+		path: ['options', 'estimator'],
+		limit: 'function',
+		code: 'placement',
+	})
+	refuseValue(producer, isFunction, 'Meter', {
+		path: ['options', 'producer'],
+		limit: 'function',
+		code: 'placement',
+	})
 
 	return { budget, estimator, producer }
 }
@@ -309,16 +240,11 @@ export function validateMeterOptions<T>(options: MeterOptions<T>): MeterOptions<
  * ```
  */
 export function validateTokenMeterOptions(options: TokenMeterOptions): TokenMeterOptions {
-	if (!isRecord(options)) {
-		throw new ContractError('TokenMeter: options must be a plain record', {
-			code: 'bound',
-			context: {
-				path: ['options'],
-				limit: 'plain record',
-				received: preview(options),
-			},
-		})
-	}
+	refuseValue(options, isRecord, 'TokenMeter', {
+		path: ['options'],
+		limit: 'plain record',
+		code: 'bound',
+	})
 
 	const { budget, estimator } = readValue(
 		() => ({
@@ -337,26 +263,16 @@ export function validateTokenMeterOptions(options: TokenMeterOptions): TokenMete
 		},
 	)
 
-	if (!isBudget(budget)) {
-		throw new ContractError('TokenMeter: budget must implement BudgetInterface', {
-			code: 'placement',
-			context: {
-				path: ['options', 'budget'],
-				limit: 'BudgetInterface',
-				received: preview(budget),
-			},
-		})
-	}
-	if (!isFunction(estimator)) {
-		throw new ContractError('TokenMeter: estimator must be a function', {
-			code: 'placement',
-			context: {
-				path: ['options', 'estimator'],
-				limit: 'function',
-				received: preview(estimator),
-			},
-		})
-	}
+	refuseValue(budget, isBudget, 'TokenMeter', {
+		path: ['options', 'budget'],
+		limit: 'BudgetInterface',
+		code: 'placement',
+	})
+	refuseValue(estimator, isFunction, 'TokenMeter', {
+		path: ['options', 'estimator'],
+		limit: 'function',
+		code: 'placement',
+	})
 
 	return { budget, estimator }
 }
